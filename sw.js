@@ -1,6 +1,6 @@
 const CACHE_NAME = 'task-organizer-v1';
 const urlsToCache = [
-    './src/index.html',
+    './index.html',
     './src/css/styles.css',
     './src/js/app.js',
     './src/js/tasks.js',
