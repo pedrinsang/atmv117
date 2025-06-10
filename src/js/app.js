@@ -50,14 +50,41 @@ function initializeApp() {
     console.log('Aplicação inicializada com sucesso');
 }
 
-let deferredPrompt;
+let deferredPrompt = null;
 
+// Detecta suporte ao evento de instalação
 window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
-    console.log('PWA pode ser instalado');
+    document.getElementById('installPwaBtn').style.display = 'inline-block';
 });
 
-window.addEventListener('appinstalled', (evt) => {
-    console.log('PWA foi instalado');
+// Botão para instalar o PWA (Android/Chrome)
+document.getElementById('installPwaBtn').addEventListener('click', async () => {
+    if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            deferredPrompt = null;
+            document.getElementById('installPwaBtn').style.display = 'none';
+        }
+    }
+});
+
+// Detecta iOS e mostra instruções
+function isIos() {
+    return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+}
+function isInStandaloneMode() {
+    return ('standalone' in window.navigator) && window.navigator.standalone;
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    if (isIos() && !isInStandaloneMode()) {
+        document.getElementById('installPwaBtn').style.display = 'inline-block';
+        document.getElementById('installPwaBtn').onclick = function() {
+            const modal = new bootstrap.Modal(document.getElementById('iosInstallModal'));
+            modal.show();
+        };
+    }
 });
