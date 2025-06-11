@@ -7,6 +7,7 @@ function loadTasks() {
     tasksList.innerHTML = '<div class="col-12 text-center"><div class="loading"></div></div>';
 
     const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
     const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
@@ -18,9 +19,16 @@ function loadTasks() {
             .onSnapshot((snapshot) => {
                 tasks = [];
                 snapshot.forEach((doc) => {
-                    tasks.push({ id: doc.id, ...doc.data() });
+                    const task = { id: doc.id, ...doc.data() };
+                    // Exclui tarefas passadas
+                    if (task.date < todayStr) {
+                        window.db.collection('tasks').doc(task.id).delete();
+                    } else {
+                        tasks.push(task);
+                    }
                 });
                 renderTasks();
+                renderWeekTasks(); // Chama a renderização da aba da semana
             });
     } else {
         setTimeout(loadTasks, 1000);
@@ -36,8 +44,8 @@ function renderTasks() {
             <div class="col-12 text-center">
                 <div class="card">
                     <div class="card-body">
-                        <i class="bi bi-calendar-x" style="font-size: 3rem;"></i>
-                        <p class="mt-3">Nenhuma tarefa para este mês</p>
+                        <i class="bi bi-calendar-x " style="font-size: 3rem;"></i>
+                        <p class=" mt-3">Nenhuma tarefa para este mês</p>
                         <button class="btn btn-orange" onclick="abrirCalendarioTelaCheia()">
                             Abrir Calendário
                         </button>
@@ -48,15 +56,83 @@ function renderTasks() {
         return;
     }
 
-    tasksList.innerHTML = tasks.map(task => `
+    // Destaca a próxima tarefa do mês
+    const todayStr = new Date().toISOString().split('T')[0];
+    const nextTaskIndex = tasks.findIndex(task => task.date >= todayStr);
+
+    tasksList.innerHTML = tasks.map((task, idx) => `
         <div class="col-md-6 col-lg-4 mb-3">
-            <div class="card task-card task-type-${task.type}">
+            <div class="card task-card task-type-${task.type} ${idx === nextTaskIndex ? 'border border-4 border-orange' : ''}">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <h6 class="card-title mb-0">${escapeHtml(task.title)}</h6>
                         <span class="badge bg-${getTypeColor(task.type)}">${task.type}</span>
                     </div>
-                    <p class="card-text  small">${escapeHtml(task.description) || 'Sem descrição'}</p>
+                    <p class="card-text small">${escapeHtml(task.description) || 'Sem descrição'}</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small>
+                            <i class="bi bi-calendar-event"></i>
+                            ${formatDate(task.date)}
+                        </small>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary me-1" onclick="editTask('${task.id}')">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteTask('${task.id}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderWeekTasks() {
+    const tasksWeekList = document.getElementById('tasksWeekList');
+    if (!tasksWeekList) return;
+
+    // Filtra tarefas da semana atual
+    const today = new Date();
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - today.getDay());
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+
+    const weekTasks = tasks.filter(task => {
+        const taskDate = new Date(task.date + 'T00:00:00');
+        return taskDate >= weekStart && taskDate <= weekEnd;
+    }).sort((a, b) => a.date.localeCompare(b.date));
+
+    if (weekTasks.length === 0) {
+        tasksWeekList.innerHTML = `
+            <div class="col-12 text-center">
+                <div class="card">
+                    <div class="card-body">
+                        <i class="bi bi-calendar-x" style="font-size: 3rem;"></i>
+                        <p class="mt-3">Nenhuma tarefa para esta semana</p>
+                        <button class="btn btn-orange" onclick="abrirCalendarioTelaCheia()">
+                            Abrir Calendário
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    // Destaca a próxima tarefa
+    const nextTaskIndex = weekTasks.findIndex(task => task.date >= today.toISOString().split('T')[0]);
+    tasksWeekList.innerHTML = weekTasks.map((task, idx) => `
+        <div class="col-md-6 col-lg-4 mb-3">
+            <div class="card task-card task-type-${task.type} ${idx === nextTaskIndex ? 'border border-4 border-orange' : ''}">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="card-title mb-0">${escapeHtml(task.title)}</h6>
+                        <span class="badge bg-${getTypeColor(task.type)}">${task.type}</span>
+                    </div>
+                    <p class="card-text small">${escapeHtml(task.description) || 'Sem descrição'}</p>
                     <div class="d-flex justify-content-between align-items-center">
                         <small>
                             <i class="bi bi-calendar-event"></i>
@@ -194,3 +270,4 @@ window.addTask = addTask;
 window.deleteTask = deleteTask;
 window.loadTasks = loadTasks;
 window.editTask = editTask;
+window.renderWeekTasks = renderWeekTasks;
