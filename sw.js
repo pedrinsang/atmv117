@@ -1,4 +1,4 @@
-const CACHE_NAME = 'task-organizer-v1';
+const CACHE_NAME = 'task-organizer-v2';
 const urlsToCache = [
     './index.html',
     './src/css/styles.css',
