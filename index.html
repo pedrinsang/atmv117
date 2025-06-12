@@ -10,7 +10,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="src/css/styles.css?v=1749671286318.0.0">
+    <link rel="stylesheet" href="src/css/styles.css?v=1749688002735.0.0">
     
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
@@ -29,6 +29,13 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
+    <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self'; 
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://cdn.jsdelivr.net; 
+    style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; 
+    img-src 'self' data: https:; 
+    connect-src 'self' https://firestore.googleapis.com https://atmv117.firebaseapp.com;
+">
 </head>
 <body>
     <!-- Header -->

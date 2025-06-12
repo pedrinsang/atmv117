@@ -1,13 +1,13 @@
 const CACHE_NAME = 'task-organizer-v' + Date.now(); // Versão baseada em timestamp
 const urlsToCache = [
-    '/',
-    '/index.html',
-    '/src/css/styles.css',
-    '/src/js/app.js',
-    '/src/js/tasks.js',
-    '/src/js/calendar.js',
-    '/src/js/firebase-config.js',
-    '/manifest.json'
+    './', // Em vez de '/'
+    './index.html', // Em vez de '/index.html'
+    './src/css/styles.css',
+    './src/js/app.js',
+    './src/js/tasks.js',
+    './src/js/calendar.js',
+    './src/js/firebase-config.js',
+    './manifest.json'
 ];
 
 // Instala o novo service worker e limpa caches antigos
@@ -56,3 +56,10 @@ self.addEventListener('fetch', (event) => {
             })
     );
 });
+
+// src/js/app.js
+navigator.serviceWorker.register('./sw.js') // Use './' em vez de '/'
+    .then((registration) => {
+        console.log('SW registrado com sucesso');
+        // ...resto do código
+    })
