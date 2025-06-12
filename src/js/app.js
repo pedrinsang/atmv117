@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Registra Service Worker com detecção de atualização
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js')
+        navigator.serviceWorker.register('./sw.js')
             .then((registration) => {
                 console.log('SW registrado com sucesso');
                 
@@ -29,6 +29,15 @@ document.addEventListener('DOMContentLoaded', function() {
             window.location.reload();
         });
     }
+
+    // Força verificação de atualizações a cada 5 minutos
+    setInterval(() => {
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.getRegistration().then((reg) => {
+                if (reg) reg.update();
+            });
+        }
+    }, 5 * 60 * 1000);
 });
 
 function initializeApp() {
@@ -111,10 +120,3 @@ window.addEventListener('DOMContentLoaded', () => {
         };
     }
 });
-
-// Força atualização a cada 5 minutos (opcional)
-setInterval(() => {
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({ command: 'checkForUpdates' });
-    }
-}, 5 * 60 * 1000);

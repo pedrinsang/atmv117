@@ -1,7 +1,7 @@
-const CACHE_NAME = 'task-organizer-v' + Date.now(); // Versão baseada em timestamp
+const CACHE_NAME = 'task-organizer-v' + Date.now(); // Nova versão a cada carregamento
 const urlsToCache = [
-    './', // Em vez de '/'
-    './index.html', // Em vez de '/index.html'
+    './',
+    './index.html',
     './src/css/styles.css',
     './src/js/app.js',
     './src/js/tasks.js',
@@ -12,47 +12,58 @@ const urlsToCache = [
 
 // Instala o novo service worker e limpa caches antigos
 self.addEventListener('install', (event) => {
+    console.log('SW: Instalando nova versão');
     event.waitUntil(
         caches.open(CACHE_NAME)
-            .then((cache) => cache.addAll(urlsToCache))
-            .then(() => self.skipWaiting()) // Força ativação imediata
+            .then((cache) => {
+                console.log('SW: Cachando arquivos');
+                return cache.addAll(urlsToCache);
+            })
+            .then(() => {
+                console.log('SW: Pulando espera');
+                return self.skipWaiting(); // Força ativação imediata
+            })
     );
 });
 
-// Remove caches antigos
+// Remove caches antigos SEMPRE
 self.addEventListener('activate', (event) => {
+    console.log('SW: Ativando nova versão');
     event.waitUntil(
         caches.keys().then((cacheNames) => {
+            console.log('SW: Limpando caches antigos');
             return Promise.all(
                 cacheNames.map((cacheName) => {
                     if (cacheName !== CACHE_NAME) {
+                        console.log('SW: Removendo cache:', cacheName);
                         return caches.delete(cacheName);
                     }
                 })
             );
         }).then(() => {
+            console.log('SW: Assumindo controle');
             return self.clients.claim(); // Assume controle imediatamente
         })
     );
 });
 
-// Estratégia: Cache First, mas sempre verifica se há atualizações
+// Estratégia: Network First (sempre busca da rede primeiro)
 self.addEventListener('fetch', (event) => {
     event.respondWith(
-        caches.match(event.request)
+        fetch(event.request)
             .then((response) => {
-                // Se estiver no cache, retorna, mas busca atualização em background
-                if (response) {
-                    fetch(event.request).then((fetchResponse) => {
-                        const responseClone = fetchResponse.clone();
-                        caches.open(CACHE_NAME).then((cache) => {
-                            cache.put(event.request, responseClone);
-                        });
+                // Se conseguiu buscar da rede, atualiza o cache
+                if (response.status === 200) {
+                    const responseClone = response.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(event.request, responseClone);
                     });
-                    return response;
                 }
-                // Se não estiver no cache, busca da rede
-                return fetch(event.request);
+                return response;
+            })
+            .catch(() => {
+                // Se a rede falhar, tenta buscar do cache
+                return caches.match(event.request);
             })
     );
 });
