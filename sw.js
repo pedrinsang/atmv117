@@ -1,4 +1,4 @@
-const CACHE_NAME = 'task-organizer-v' + Date.now(); // Nova versão a cada carregamento
+const CACHE_NAME = 'task-organizer-v' + Date.now();
 const urlsToCache = [
     './',
     './index.html',
@@ -10,7 +10,7 @@ const urlsToCache = [
     './manifest.json'
 ];
 
-// Instala o novo service worker e limpa caches antigos
+// Instala o novo service worker
 self.addEventListener('install', (event) => {
     console.log('SW: Instalando nova versão');
     event.waitUntil(
@@ -21,12 +21,12 @@ self.addEventListener('install', (event) => {
             })
             .then(() => {
                 console.log('SW: Pulando espera');
-                return self.skipWaiting(); // Força ativação imediata
+                return self.skipWaiting();
             })
     );
 });
 
-// Remove caches antigos SEMPRE
+// Remove caches antigos
 self.addEventListener('activate', (event) => {
     console.log('SW: Ativando nova versão');
     event.waitUntil(
@@ -42,17 +42,16 @@ self.addEventListener('activate', (event) => {
             );
         }).then(() => {
             console.log('SW: Assumindo controle');
-            return self.clients.claim(); // Assume controle imediatamente
+            return self.clients.claim();
         })
     );
 });
 
-// Estratégia: Network First (sempre busca da rede primeiro)
+// Estratégia: Network First
 self.addEventListener('fetch', (event) => {
     event.respondWith(
         fetch(event.request)
             .then((response) => {
-                // Se conseguiu buscar da rede, atualiza o cache
                 if (response.status === 200) {
                     const responseClone = response.clone();
                     caches.open(CACHE_NAME).then((cache) => {
@@ -62,15 +61,7 @@ self.addEventListener('fetch', (event) => {
                 return response;
             })
             .catch(() => {
-                // Se a rede falhar, tenta buscar do cache
                 return caches.match(event.request);
             })
     );
 });
-
-// src/js/app.js
-navigator.serviceWorker.register('./sw.js') // Use './' em vez de '/'
-    .then((registration) => {
-        console.log('SW registrado com sucesso');
-        // ...resto do código
-    })
