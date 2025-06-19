@@ -4,9 +4,25 @@ let tasks = [];
 const GITHUB_CONFIG = {
     owner: 'pedrinsang',
     repo: 'atmv117',
-    token: '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', // Seu token
+    token: '', // Será preenchido dinamicamente
     branch: 'main'
 };
+
+// Função para carregar token do ambiente (simulação client-side)
+function initGitHubConfig() {
+    // Para produção, o token seria carregado de variáveis de ambiente
+    // Por agora, vamos usar uma abordagem mais segura
+    const token = prompt('Digite seu GitHub Token (será usado apenas nesta sessão):');
+    if (token) {
+        GITHUB_CONFIG.token = token;
+        localStorage.setItem('gh_token', token); // Temporário na sessão
+    }
+}
+
+// Carregar token do localStorage se existir
+if (localStorage.getItem('gh_token')) {
+    GITHUB_CONFIG.token = localStorage.getItem('gh_token');
+}
 
 // FUNÇÃO AUXILIAR - DEFINIR
 function fileToBase64(file) {
