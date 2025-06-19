@@ -4,24 +4,21 @@ let tasks = [];
 const GITHUB_CONFIG = {
     owner: 'pedrinsang',
     repo: 'atmv117',
-    token: '', // Será preenchido dinamicamente
+    token: '', // Não colocar token aqui!
     branch: 'main'
 };
 
-// Função para carregar token do ambiente (simulação client-side)
-function initGitHubConfig() {
-    // Para produção, o token seria carregado de variáveis de ambiente
-    // Por agora, vamos usar uma abordagem mais segura
-    const token = prompt('Digite seu GitHub Token (será usado apenas nesta sessão):');
-    if (token) {
-        GITHUB_CONFIG.token = token;
-        localStorage.setItem('gh_token', token); // Temporário na sessão
+// Função para obter token de forma segura
+function getGitHubToken() {
+    if (!GITHUB_CONFIG.token) {
+        const token = localStorage.getItem('github_token') || 
+                     prompt('Digite seu GitHub Personal Access Token:');
+        if (token) {
+            GITHUB_CONFIG.token = token;
+            localStorage.setItem('github_token', token);
+        }
     }
-}
-
-// Carregar token do localStorage se existir
-if (localStorage.getItem('gh_token')) {
-    GITHUB_CONFIG.token = localStorage.getItem('gh_token');
+    return GITHUB_CONFIG.token;
 }
 
 // FUNÇÃO AUXILIAR - DEFINIR
@@ -36,6 +33,11 @@ function fileToBase64(file) {
 
 // Função para upload no GitHub
 async function uploadToGitHub(file, taskId) {
+    const token = getGitHubToken();
+    if (!token) {
+        throw new Error('Token do GitHub é necessário');
+    }
+
     const timestamp = Date.now();
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
     const fileName = `${timestamp}_${sanitizedName}`;
@@ -48,7 +50,7 @@ async function uploadToGitHub(file, taskId) {
         const response = await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${path}`, {
             method: 'PUT',
             headers: {
-                'Authorization': `token ${GITHUB_CONFIG.token}`,
+                'Authorization': `token ${token}`, // Usar token da função
                 'Content-Type': 'application/json',
                 'Accept': 'application/vnd.github.v3+json'
             },
@@ -85,11 +87,14 @@ async function uploadToGitHub(file, taskId) {
 
 // Função para deletar arquivo do GitHub
 async function deleteFromGitHub(filePath, sha) {
+    const token = getGitHubToken();
+    if (!token) return;
+
     try {
         const response = await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${filePath}`, {
             method: 'DELETE',
             headers: {
-                'Authorization': `token ${GITHUB_CONFIG.token}`,
+                'Authorization': `token ${token}`, // Usar token da função
                 'Content-Type': 'application/json',
                 'Accept': 'application/vnd.github.v3+json'
             },
