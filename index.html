@@ -35,7 +35,7 @@
     style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; 
     font-src 'self' https://cdn.jsdelivr.net; 
     img-src 'self' data: https:; 
-    connect-src 'self' https://firestore.googleapis.com https://atmv117.firebaseapp.com;
+    connect-src 'self' https://firestore.googleapis.com https://atmv117.firebaseapp.com https://api.github.com https://raw.githubusercontent.com;
 ">
 </head>
 <body>
@@ -97,15 +97,15 @@
 
     <!-- Task Modal -->
     <div class="modal fade" id="taskModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header bg-orange text-white">
                     <h5 class="modal-title">Adicionar Tarefa</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body" >
+                <div class="modal-body">
                     <form id="taskForm">
-                        <div class="mb-3" >
+                        <div class="mb-3">
                             <label for="taskTitle" class="form-label">Título</label>
                             <input type="text" class="form-control" id="taskTitle" required>
                         </div>
@@ -125,6 +125,45 @@
                         <div class="mb-3">
                             <label for="taskDescription" class="form-label">Descrição</label>
                             <textarea class="form-control" id="taskDescription" rows="3"></textarea>
+                        </div>
+                        
+                        <!-- Anexos Múltiplos -->
+                        <div class="mb-3">
+                            <label class="form-label">Anexos</label>
+                            <div class="border rounded p-3">
+                                <!-- Google Drive -->
+                                <div class="mb-3">
+                                    <label for="taskGoogleDriveLinks" class="form-label small">
+                                        <i class="bi bi-google text-primary"></i> Links do Google Drive
+                                    </label>
+                                    <div id="googleDriveContainer">
+                                        <div class="input-group mb-2">
+                                            <input type="url" class="form-control form-control-sm" 
+                                                   placeholder="https://drive.google.com/..." 
+                                                   name="googleDriveLink">
+                                            <button type="button" class="btn btn-sm btn-outline-success" onclick="addGoogleDriveField()">
+                                                <i class="bi bi-plus"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Arquivos -->
+                                <div class="mb-3">
+                                    <label for="taskFiles" class="form-label small">
+                                        <i class="bi bi-file-earmark text-info"></i> Arquivos (PDF, PowerPoint, Word, etc.)
+                                    </label>
+                                    <input type="file" class="form-control form-control-sm" id="taskFiles" 
+                                           accept=".pdf,.ppt,.pptx,.doc,.docx,.txt,.jpg,.jpeg,.png" 
+                                           multiple>
+                                    <small class="text-muted">
+                                        Máximo 25MB por arquivo. Selecione vários arquivos segurando Ctrl/Cmd.
+                                    </small>
+                                    
+                                    <!-- Preview dos arquivos selecionados -->
+                                    <div id="filesPreview" class="mt-2"></div>
+                                </div>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -180,12 +219,112 @@
               <li>Escolha <b>Adicionar à Tela de Início</b>.</li>
               <li>Confirme em "Adicionar".</li>
             </ol>
-            <p class="text-muted small">No iPhone, a instalação só é possível pelo Safari.</p>
+            <p class="small">No iPhone, a instalação só é possível pelo Safari.</p>
           </div>
         </div>
       </div>
     </div>
 
+
+    <!-- Task Details Modal -->
+    <div class="modal fade" id="taskDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-orange text-white">
+                    <h5 class="modal-title" id="taskDetailsTitle">Detalhes da Tarefa</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-muted">
+                    <!-- Informações da Tarefa -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <strong>Tipo:</strong> 
+                            <span class="badge bg-secondary ms-2" id="taskDetailsType">-</span>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Data:</strong> 
+                            <span id="taskDetailsDate">-</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <strong>Descrição:</strong>
+                        <p id="taskDetailsDescription" class="mt-2 text-muted">-</p>
+                    </div>
+
+                    <!-- Seção de Anexos -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="mb-0">
+                                <i class="bi bi-paperclip"></i> Anexos
+                            </h6>
+                            <button class="btn btn-sm btn-success" onclick="showAddAttachmentsSection()">
+                                <i class="bi bi-plus"></i> Adicionar Anexos
+                            </button>
+                        </div>
+
+                        <!-- Lista de Anexos Existentes -->
+                        <div id="existingAttachments"></div>
+
+                        <!-- Seção para Adicionar Novos Anexos (inicialmente oculta) -->
+                        <div id="addAttachmentsSection" style="display: none;">
+                            <hr>
+                            <h6 class="text-success mb-3">
+                                <i class="bi bi-plus-circle"></i> Adicionar Novos Anexos
+                            </h6>
+                            
+                            <!-- Google Drive Links -->
+                            <div class="mb-3">
+                                <label class="form-label small">
+                                    <i class="bi bi-google text-primary"></i> Novos Links do Google Drive
+                                </label>
+                                <div id="newGoogleDriveContainer">
+                                    <div class="input-group mb-2">
+                                        <input type="url" class="form-control form-control-sm" 
+                                               placeholder="https://drive.google.com/..." 
+                                               name="newGoogleDriveLink">
+                                        <button type="button" class="btn btn-sm btn-outline-success" onclick="addNewGoogleDriveField()">
+                                            <i class="bi bi-plus"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Novos Arquivos -->
+                            <div class="mb-3">
+                                <label for="newTaskFiles" class="form-label small">
+                                    <i class="bi bi-file-earmark text-info"></i> Novos Arquivos
+                                </label>
+                                <input type="file" class="form-control form-control-sm" id="newTaskFiles" 
+                                       accept=".pdf,.ppt,.pptx,.doc,.docx,.txt,.jpg,.jpeg,.png" 
+                                       multiple>
+                                <div id="newFilesPreview" class="mt-2"></div>
+                            </div>
+
+                            <!-- Botões da Seção de Adicionar -->
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-success btn-sm" onclick="addNewAttachments()">
+                                    <i class="bi bi-upload"></i> Adicionar Anexos
+                                </button>
+                                <button class="btn btn-secondary btn-sm" onclick="hideAddAttachmentsSection()">
+                                    <i class="bi bi-x"></i> Cancelar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" onclick="editTaskFromDetails()">
+                        <i class="bi bi-pencil"></i> Editar Tarefa
+                    </button>
+                    <button type="button" class="btn btn-danger" onclick="deleteTaskFromDetails()">
+                        <i class="bi bi-trash"></i> Excluir Tarefa
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
