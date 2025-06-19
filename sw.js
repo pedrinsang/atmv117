@@ -1,4 +1,4 @@
-const CACHE_NAME = 'atmv117-v1.0.0';
+const CACHE_NAME = 'atmv117-v1.0.1';
 const urlsToCache = [
     '/',
     '/index.html',
@@ -40,58 +40,50 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// Interceptar requisições
+// Interceptar requisições - CORRIGIDO
 self.addEventListener('fetch', (event) => {
-    const requestUrl = new URL(event.request.url);
-    
-    // FILTRAR: Só cachear requisições GET
+    // FILTRAR: Só processar requisições GET
     if (event.request.method !== 'GET') {
-        // Para POST, PUT, DELETE (Firebase, GitHub) - deixar passar direto
-        return;
+        return; // Deixar POST/PUT/DELETE passarem direto
     }
     
-    // FILTRAR: Não cachear APIs externas que mudam frequentemente
+    const requestUrl = new URL(event.request.url);
+    
+    // FILTRAR: Não cachear APIs externas
     if (
         requestUrl.hostname.includes('firestore.googleapis.com') ||
         requestUrl.hostname.includes('api.github.com') ||
         requestUrl.hostname.includes('firebase') ||
         requestUrl.hostname.includes('googleapis.com')
     ) {
-        // Deixar APIs passarem direto (sem cache)
-        return;
+        return; // Deixar APIs passarem direto
     }
     
     event.respondWith(
         caches.match(event.request)
             .then((response) => {
-                // Cache hit - retornar resposta do cache
+                // Cache hit
                 if (response) {
                     return response;
                 }
                 
-                // IMPORTANTE: Clonar a requisição
-                const fetchRequest = event.request.clone();
-                
-                return fetch(fetchRequest).then((response) => {
-                    // Verificar se recebemos uma resposta válida
+                // Buscar na rede
+                return fetch(event.request.clone()).then((response) => {
+                    // Verificar se é uma resposta válida
                     if (!response || response.status !== 200 || response.type !== 'basic') {
                         return response;
                     }
                     
-                    // IMPORTANTE: Clonar a resposta
+                    // Cachear apenas se for GET
                     const responseToCache = response.clone();
-                    
                     caches.open(CACHE_NAME)
                         .then((cache) => {
-                            // Só cachear se for GET e resposta válida
-                            if (event.request.method === 'GET') {
-                                cache.put(event.request, responseToCache);
-                            }
+                            cache.put(event.request, responseToCache);
                         });
                     
                     return response;
                 }).catch(() => {
-                    // Se falhar, tentar buscar no cache
+                    // Fallback para cache em caso de erro
                     return caches.match(event.request);
                 });
             })
