@@ -6,7 +6,7 @@ let currentViewingTask = null;
 const GITHUB_CONFIG = {
     owner: 'pedrinsang',
     repo: 'atmv117',
-    token: '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',
+    token: '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',
     branch: 'main'
 };
 
@@ -134,6 +134,12 @@ async function uploadToGitHub(file, taskId) {
     const path = `uploads/${fileName}`;
     
     try {
+        // LIMITE REAL DO GITHUB: 25MB
+        const maxSize = 25 * 1024 * 1024; // 25MB
+        if (file.size > maxSize) {
+            throw new Error(`Arquivo muito grande: ${formatFileSize(file.size)} (máximo 25MB para GitHub)`);
+        }
+        
         const base64Content = await fileToBase64(file);
         const content = base64Content.split(',')[1];
         
@@ -145,7 +151,7 @@ async function uploadToGitHub(file, taskId) {
                 'Accept': 'application/vnd.github.v3+json'
             },
             body: JSON.stringify({
-                message: `Upload: ${fileName} for task ${taskId}`,
+                message: `Upload: ${fileName} for task ${taskId} (${formatFileSize(file.size)})`,
                 content: content,
                 branch: GITHUB_CONFIG.branch
             })
@@ -154,6 +160,16 @@ async function uploadToGitHub(file, taskId) {
         if (!response.ok) {
             const errorData = await response.json();
             console.error('GitHub API Error:', errorData);
+            
+            // Tratamento específico para arquivo muito grande
+            if (response.status === 422 && errorData.message?.includes('too large')) {
+                throw new Error(`Arquivo muito grande para GitHub: ${formatFileSize(file.size)} (máximo 25MB)`);
+            }
+            
+            if (response.status === 401) {
+                throw new Error('Token GitHub inválido. Verifique as credenciais.');
+            }
+            
             throw new Error(`GitHub upload failed: ${response.status} - ${errorData.message}`);
         }
         
@@ -197,6 +213,24 @@ async function deleteFromGitHub(filePath, sha) {
         
     } catch (error) {
         console.warn('Erro ao deletar arquivo do GitHub:', error);
+    }
+}
+
+// ===== FUNÇÕES DE PROCESSAMENTO DE ARQUIVOS =====
+
+async function processFileWithConversion(file, taskId) {
+    try {
+        console.log(`🔄 Processando ${file.name} (${formatFileSize(file.size)})...`);
+        
+        // Usar sistema simples
+        const result = await window.fileConverter.processFile(file, taskId);
+        
+        console.log(`✅ Processamento bem-sucedido: ${file.name}`);
+        return result;
+        
+    } catch (error) {
+        console.error(`❌ Erro ao processar ${file.name}:`, error);
+        throw error;
     }
 }
 
@@ -447,6 +481,7 @@ function addTask() {
     const type = document.getElementById('taskType').value;
     const date = document.getElementById('taskDate').value;
     const description = document.getElementById('taskDescription').value;
+    const fileInput = document.getElementById('taskFiles');
 
     if (!title || !type || !date) {
         alert('Por favor, preencha todos os campos obrigatórios.');
@@ -474,6 +509,8 @@ function addTask() {
         attachments.youtubeLinks = youTubeLinks;
     }
 
+    const selectedFiles = fileInput && fileInput.files ? Array.from(fileInput.files) : [];
+
     const task = {
         title: title.trim(),
         type,
@@ -484,320 +521,185 @@ function addTask() {
         createdBy: 'Usuário'
     };
 
-    if (window.editingTaskId) {
-        if (window.db) {
-            window.db.collection('tasks').doc(window.editingTaskId).update(task)
-                .then(() => {
-                    document.getElementById('taskForm').reset();
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('taskModal'));
-                    if (modal) modal.hide();
-                    window.editingTaskId = null;
-                    const addBtn = document.querySelector('#taskModal .btn-orange');
-                    if (addBtn) addBtn.textContent = 'Adicionar';
-                })
-                .catch((error) => {
-                    console.error('Erro ao editar tarefa:', error);
-                    alert('Erro ao editar tarefa. Tente novamente.');
-                });
-        }
-        return;
-    }
-
-    if (window.db) {
-        window.db.collection('tasks').add(task)
-            .then(() => {
-                document.getElementById('taskForm').reset();
-                const modal = bootstrap.Modal.getInstance(document.getElementById('taskModal'));
-                if (modal) modal.hide();
-            })
-            .catch((error) => {
-                console.error('Erro ao adicionar tarefa:', error);
-                alert('Erro ao adicionar tarefa. Tente novamente.');
-            });
-    }
-}
-
-function editTask(taskId) {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    document.getElementById('taskTitle').value = task.title;
-    document.getElementById('taskType').value = task.type;
-    document.getElementById('taskDate').value = task.date;
-    document.getElementById('taskDescription').value = task.description || '';
-
-    window.editingTaskId = taskId;
-
-    const taskModal = new bootstrap.Modal(document.getElementById('taskModal'));
-    taskModal.show();
-
-    const addBtn = document.querySelector('#taskModal .btn-orange');
-    if (addBtn) addBtn.textContent = 'Salvar';
-}
-
-function deleteTask(taskId) {
-    if (confirm('Tem certeza que deseja excluir esta tarefa?')) {
-        if (window.db) {
-            window.db.collection('tasks').doc(taskId).delete()
-                .catch((error) => {
-                    console.error('Erro ao excluir tarefa:', error);
-                    alert('Erro ao excluir tarefa. Tente novamente.');
-                });
-        }
-    }
-}
-
-// ===== FUNÇÕES DO MODAL DE DETALHES =====
-
-function showTaskDetails(taskId) {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    currentViewingTask = task;
-
-    document.getElementById('taskDetailsTitle').textContent = task.title;
-    document.getElementById('taskDetailsType').textContent = task.type;
-    document.getElementById('taskDetailsType').className = `badge bg-${getTypeColor(task.type)} ms-2`;
-    document.getElementById('taskDetailsDate').textContent = formatDate(task.date);
-    document.getElementById('taskDetailsDescription').textContent = task.description || 'Sem descrição';
-
-    renderExistingAttachments(task.attachments);
-    hideAddAttachmentsSection();
-
-    const modal = new bootstrap.Modal(document.getElementById('taskDetailsModal'));
-    modal.show();
-}
-
-function showAddAttachmentsSection() {
-    document.getElementById('addAttachmentsSection').style.display = 'block';
-}
-
-function hideAddAttachmentsSection() {
-    const section = document.getElementById('addAttachmentsSection');
-    if (section) {
-        section.style.display = 'none';
-    }
-}
-
-function editTaskFromDetails() {
-    if (currentViewingTask) {
-        const detailsModal = bootstrap.Modal.getInstance(document.getElementById('taskDetailsModal'));
-        if (detailsModal) detailsModal.hide();
-        setTimeout(() => editTask(currentViewingTask.id), 300);
-    }
-}
-
-function deleteTaskFromDetails() {
-    if (currentViewingTask) {
-        const detailsModal = bootstrap.Modal.getInstance(document.getElementById('taskDetailsModal'));
-        if (detailsModal) detailsModal.hide();
-        setTimeout(() => deleteTask(currentViewingTask.id), 300);
-    }
-}
-
-// ===== FUNÇÕES DE GERENCIAMENTO DE ANEXOS =====
-
-// Google Drive - Modal de criação
-function addGoogleDriveField() {
-    const container = document.getElementById('googleDriveContainer');
-    if (!container) return;
-    
-    const newField = document.createElement('div');
-    newField.className = 'input-group mb-2';
-    newField.innerHTML = `
-        <input type="url" class="form-control form-control-sm" 
-               placeholder="https://drive.google.com/..." 
-               name="googleDriveLink">
-        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeGoogleDriveField(this)">
-            <i class="bi bi-trash"></i>
-        </button>
-    `;
-    container.appendChild(newField);
-}
-
-function removeGoogleDriveField(button) {
-    button.parentElement.remove();
-}
-
-// YouTube - Modal de criação
-function addYouTubeField() {
-    const container = document.getElementById('youTubeContainer');
-    if (!container) return;
-    
-    const newField = document.createElement('div');
-    newField.className = 'input-group mb-2';
-    newField.innerHTML = `
-        <input type="url" class="form-control form-control-sm" 
-               placeholder="https://youtube.com/watch?v=..." 
-               name="youTubeLink">
-        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeYouTubeField(this)">
-            <i class="bi bi-trash"></i>
-        </button>
-    `;
-    container.appendChild(newField);
-}
-
-function removeYouTubeField(button) {
-    button.parentElement.remove();
-}
-
-// Google Drive - Modal de detalhes
-function addNewGoogleDriveField() {
-    const container = document.getElementById('newGoogleDriveContainer');
-    if (!container) return;
-    
-    const newField = document.createElement('div');
-    newField.className = 'input-group mb-2';
-    newField.innerHTML = `
-        <input type="url" class="form-control form-control-sm" 
-               placeholder="https://drive.google.com/..." 
-               name="newGoogleDriveLink">
-        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeNewGoogleDriveField(this)">
-            <i class="bi bi-trash"></i>
-        </button>
-    `;
-    container.appendChild(newField);
-}
-
-function removeNewGoogleDriveField(button) {
-    button.parentElement.remove();
-}
-
-// YouTube - Modal de detalhes
-function addNewYouTubeField() {
-    const container = document.getElementById('newYouTubeContainer');
-    if (!container) return;
-    
-    const newField = document.createElement('div');
-    newField.className = 'input-group mb-2';
-    newField.innerHTML = `
-        <input type="url" class="form-control form-control-sm" 
-               placeholder="https://youtube.com/watch?v=..." 
-               name="newYouTubeLink">
-        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeNewYouTubeField(this)">
-            <i class="bi bi-trash"></i>
-        </button>
-    `;
-    container.appendChild(newField);
-}
-
-function removeNewYouTubeField(button) {
-    button.parentElement.remove();
-}
-
-// Arquivos
-function removeNewFile(index) {
-    const fileInput = document.getElementById('newTaskFiles');
-    if (!fileInput) return;
-    
-    const dt = new DataTransfer();
-    
-    Array.from(fileInput.files).forEach((file, i) => {
-        if (i !== index) dt.items.add(file);
-    });
-    
-    fileInput.files = dt.files;
-    fileInput.dispatchEvent(new Event('change'));
-}
-
-// Remoção de anexos existentes
-async function removeGoogleDriveLink(index) {
-    if (!currentViewingTask || !confirm('Remover este link do Google Drive?')) return;
-
-    try {
-        const attachments = { ...currentViewingTask.attachments };
-        if (attachments.googleDriveLinks && attachments.googleDriveLinks.length > index) {
-            attachments.googleDriveLinks.splice(index, 1);
-
+    const saveTaskWithoutFiles = () => {
+        if (window.editingTaskId) {
             if (window.db) {
-                await window.db.collection('tasks').doc(currentViewingTask.id).update({ attachments });
-                
-                currentViewingTask.attachments = attachments;
-                
-                const taskIndex = tasks.findIndex(t => t.id === currentViewingTask.id);
-                if (taskIndex !== -1) {
-                    tasks[taskIndex].attachments = attachments;
-                }
-                
-                renderExistingAttachments(attachments);
-                loadTasks();
-                
-                alert('Link removido com sucesso!');
+                window.db.collection('tasks').doc(window.editingTaskId).update(task)
+                    .then(() => {
+                        clearTaskForm();
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('taskModal'));
+                        if (modal) modal.hide();
+                        window.editingTaskId = null;
+                        const addBtn = document.querySelector('#taskModal .btn-orange');
+                        if (addBtn) addBtn.textContent = 'Adicionar';
+                    })
+                    .catch((error) => {
+                        console.error('Erro ao editar tarefa:', error);
+                        alert('Erro ao editar tarefa. Tente novamente.');
+                    });
+            }
+        } else {
+            if (window.db) {
+                window.db.collection('tasks').add(task)
+                    .then(() => {
+                        clearTaskForm();
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('taskModal'));
+                        if (modal) modal.hide();
+                    })
+                    .catch((error) => {
+                        console.error('Erro ao adicionar tarefa:', error);
+                        alert('Erro ao adicionar tarefa. Tente novamente.');
+                    });
             }
         }
+    };
 
-    } catch (error) {
-        console.error('Erro ao remover link:', error);
-        alert('Erro ao remover link.');
-    }
-}
-
-async function removeYouTubeLink(index) {
-    if (!currentViewingTask || !confirm('Remover este link do YouTube?')) return;
-
-    try {
-        const attachments = { ...currentViewingTask.attachments };
-        if (attachments.youtubeLinks && attachments.youtubeLinks.length > index) {
-            attachments.youtubeLinks.splice(index, 1);
-
-            if (window.db) {
-                await window.db.collection('tasks').doc(currentViewingTask.id).update({ attachments });
-                
-                currentViewingTask.attachments = attachments;
-                
-                const taskIndex = tasks.findIndex(t => t.id === currentViewingTask.id);
-                if (taskIndex !== -1) {
-                    tasks[taskIndex].attachments = attachments;
-                }
-                
-                renderExistingAttachments(attachments);
-                loadTasks();
-                
-                alert('Link do YouTube removido com sucesso!');
-            }
-        }
-
-    } catch (error) {
-        console.error('Erro ao remover link do YouTube:', error);
-        alert('Erro ao remover link do YouTube.');
-    }
-}
-
-async function removeAttachedFile(index) {
-    if (!currentViewingTask || !confirm('Remover este arquivo? Ele será deletado permanentemente.')) return;
-
-    try {
-        const attachments = { ...currentViewingTask.attachments };
-        if (attachments.files && attachments.files.length > index) {
-            const fileToDelete = attachments.files[index];
+    const saveTaskWithFiles = async (taskId) => {
+        try {
+            const uploadedFiles = [];
+            const failedFiles = [];
             
-            await deleteFromGitHub(fileToDelete.path, fileToDelete.sha);
-            attachments.files.splice(index, 1);
-
-            if (window.db) {
-                await window.db.collection('tasks').doc(currentViewingTask.id).update({ attachments });
+            const addBtn = document.querySelector('#taskModal .btn-orange');
+            const originalText = addBtn ? addBtn.textContent : '';
+            
+            for (let i = 0; i < selectedFiles.length; i++) {
+                const file = selectedFiles[i];
+                if (addBtn) addBtn.textContent = `Enviando ${i + 1}/${selectedFiles.length}... ${file.name}`;
                 
-                currentViewingTask.attachments = attachments;
-                
-                const taskIndex = tasks.findIndex(t => t.id === currentViewingTask.id);
-                if (taskIndex !== -1) {
-                    tasks[taskIndex].attachments = attachments;
+                try {
+                    const uploadedFile = await processFileWithConversion(file, taskId);
+                    uploadedFiles.push(uploadedFile);
+                } catch (error) {
+                    console.error(`❌ Falha com ${file.name}:`, error);
+                    failedFiles.push({ name: file.name, size: file.size, error: error.message });
                 }
+            }
+            
+            if (uploadedFiles.length > 0) {
+                task.attachments = task.attachments || {};
+                task.attachments.files = uploadedFiles;
                 
-                renderExistingAttachments(attachments);
-                loadTasks();
-                
-                alert('Arquivo removido com sucesso!');
+                await window.db.collection('tasks').doc(taskId).update({
+                    attachments: task.attachments
+                });
+            }
+            
+            if (addBtn) addBtn.textContent = originalText;
+            
+            let message = '';
+            if (uploadedFiles.length > 0) {
+                message += `✅ ${uploadedFiles.length} arquivo(s) enviado(s)!\n`;
+            }
+            if (failedFiles.length > 0) {
+                message += `\n❌ ${failedFiles.length} arquivo(s) muito grande(s):\n`;
+                failedFiles.forEach(file => {
+                    message += `• ${file.name} (${formatFileSize(file.size)})\n`;
+                });
+                message += `\n💡 Use Google Drive para estes arquivos.`;
+            }
+            
+            if (message) alert(message);
+            
+            clearTaskForm();
+            const modal = bootstrap.Modal.getInstance(document.getElementById('taskModal'));
+            if (modal) modal.hide();
+            
+        } catch (error) {
+            console.error('Erro ao processar arquivos:', error);
+            alert('Erro ao processar arquivos. Tarefa salva sem anexos.');
+            
+            clearTaskForm();
+            const modal = bootstrap.Modal.getInstance(document.getElementById('taskModal'));
+            if (modal) modal.hide();
+        }
+    };
+
+    if (selectedFiles.length === 0) {
+        saveTaskWithoutFiles();
+    } else {
+        if (window.editingTaskId) {
+            saveTaskWithFiles(window.editingTaskId);
+        } else {
+            if (window.db) {
+                window.db.collection('tasks').add(task)
+                    .then((docRef) => {
+                        saveTaskWithFiles(docRef.id);
+                    })
+                    .catch((error) => {
+                        console.error('Erro ao adicionar tarefa:', error);
+                        alert('Erro ao adicionar tarefa. Tente novamente.');
+                    });
             }
         }
-
-    } catch (error) {
-        console.error('Erro ao remover arquivo:', error);
-        alert('Erro ao remover arquivo.');
     }
 }
 
-// Adição de novos anexos
+function clearTaskForm() {
+    document.getElementById('taskForm').reset();
+    
+    const filesPreview = document.getElementById('filesPreview');
+    if (filesPreview) filesPreview.innerHTML = '';
+    
+    const fileInput = document.getElementById('taskFiles');
+    if (fileInput) {
+        fileInput.value = '';
+        fileInput.files = new DataTransfer().files;
+        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    
+    const googleDriveContainer = document.getElementById('googleDriveContainer');
+    if (googleDriveContainer) {
+        const extraFields = googleDriveContainer.querySelectorAll('.input-group:not(:first-child)');
+        extraFields.forEach(field => field.remove());
+        
+        const firstInput = googleDriveContainer.querySelector('input[name="googleDriveLink"]');
+        if (firstInput) firstInput.value = '';
+    }
+    
+    const youTubeContainer = document.getElementById('youTubeContainer');
+    if (youTubeContainer) {
+        const extraFields = youTubeContainer.querySelectorAll('.input-group:not(:first-child)');
+        extraFields.forEach(field => field.remove());
+        
+        const firstInput = youTubeContainer.querySelector('input[name="youTubeLink"]');
+        if (firstInput) firstInput.value = '';
+    }
+    
+    console.log('✅ Formulário limpo completamente');
+}
+
+function clearNewAttachmentsForm() {
+    const newGoogleDriveContainer = document.getElementById('newGoogleDriveContainer');
+    if (newGoogleDriveContainer) {
+        const extraFields = newGoogleDriveContainer.querySelectorAll('.input-group:not(:first-child)');
+        extraFields.forEach(field => field.remove());
+        
+        const firstInput = newGoogleDriveContainer.querySelector('input[name="newGoogleDriveLink"]');
+        if (firstInput) firstInput.value = '';
+    }
+    
+    const newYouTubeContainer = document.getElementById('newYouTubeContainer');
+    if (newYouTubeContainer) {
+        const extraFields = newYouTubeContainer.querySelectorAll('.input-group:not(:first-child)');
+        extraFields.forEach(field => field.remove());
+        
+        const firstInput = newYouTubeContainer.querySelector('input[name="newYouTubeLink"]');
+        if (firstInput) firstInput.value = '';
+    }
+    
+    const newFileInput = document.getElementById('newTaskFiles');
+    if (newFileInput) {
+        newFileInput.value = '';
+        newFileInput.files = new DataTransfer().files;
+        newFileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    
+    const newFilesPreview = document.getElementById('newFilesPreview');
+    if (newFilesPreview) newFilesPreview.innerHTML = '';
+    
+    console.log('✅ Formulário de novos anexos limpo');
+}
+
 async function addNewAttachments() {
     if (!currentViewingTask) return;
 
@@ -825,13 +727,6 @@ async function addNewAttachments() {
             return;
         }
 
-        for (const file of newFiles) {
-            if (file.size > 25 * 1024 * 1024) {
-                alert(`Arquivo "${file.name}" muito grande! Máximo 25MB por arquivo.`);
-                return;
-            }
-        }
-
         const currentAttachments = currentViewingTask.attachments || {};
         
         if (newGoogleDriveLinks.length > 0) {
@@ -845,12 +740,19 @@ async function addNewAttachments() {
         }
 
         const existingFiles = currentAttachments.files || [];
+        const failedFiles = [];
+        
         for (let i = 0; i < newFiles.length; i++) {
             const file = newFiles[i];
-            addBtn.textContent = `Enviando ${i + 1}/${newFiles.length}...`;
+            addBtn.textContent = `Processando ${i + 1}/${newFiles.length}... ${file.name}`;
             
-            const uploadedFile = await uploadToGitHub(file, currentViewingTask.id);
-            existingFiles.push(uploadedFile);
+            try {
+                const uploadedFile = await processFileWithConversion(file, currentViewingTask.id);
+                existingFiles.push(uploadedFile);
+            } catch (error) {
+                console.error(`❌ Falha com ${file.name}:`, error);
+                failedFiles.push({ name: file.name, size: file.size, error: error.message });
+            }
         }
         
         currentAttachments.files = existingFiles;
@@ -868,10 +770,26 @@ async function addNewAttachments() {
             }
 
             renderExistingAttachments(currentAttachments);
+            clearNewAttachmentsForm();
             hideAddAttachmentsSection();
             loadTasks();
 
-            alert('Anexos adicionados com sucesso!');
+            let message = '';
+            const successCount = newFiles.length - failedFiles.length;
+            
+            if (successCount > 0) {
+                message += `✅ ${successCount} arquivo(s) adicionado(s) com sucesso!\n`;
+            }
+            
+            if (failedFiles.length > 0) {
+                message += `\n❌ ${failedFiles.length} arquivo(s) muito grande(s):\n`;
+                failedFiles.forEach(file => {
+                    message += `• ${file.name} (${formatFileSize(file.size)})\n`;
+                });
+                message += `\n💡 Use Google Drive para estes arquivos.`;
+            }
+            
+            alert(message);
         }
 
         addBtn.textContent = originalText;
@@ -882,73 +800,418 @@ async function addNewAttachments() {
     }
 }
 
-// ===== EVENT LISTENERS =====
+function hideAddAttachmentsSection() {
+    const section = document.getElementById('addAttachmentsSection');
+    if (section) {
+        section.style.display = 'none';
+        clearNewAttachmentsForm();
+    }
+}
 
-document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(() => {
-        const newFileInput = document.getElementById('newTaskFiles');
-        if (newFileInput) {
-            newFileInput.addEventListener('change', function() {
-                const preview = document.getElementById('newFilesPreview');
-                if (!preview) return;
-                
-                preview.innerHTML = '';
-                
-                Array.from(this.files).forEach((file, index) => {
-                    const fileDiv = document.createElement('div');
-                    fileDiv.className = 'alert alert-light py-2 mb-1';
-                    fileDiv.innerHTML = `
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <i class="bi bi-file-earmark"></i>
-                                <span class="small">${file.name}</span>
-                                <span class="badge bg-secondary ms-2">${formatFileSize(file.size)}</span>
-                            </div>
-                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeNewFile(${index})">
-                                <i class="bi bi-x"></i>
-                            </button>
-                        </div>
-                    `;
-                    preview.appendChild(fileDiv);
-                });
+function editTask(taskId) {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    document.getElementById('taskTitle').value = task.title;
+    document.getElementById('taskType').value = task.type;
+    document.getElementById('taskDate').value = task.date;
+    document.getElementById('taskDescription').value = task.description || '';
+
+    clearTaskForm();
+
+    if (task.attachments?.googleDriveLinks) {
+        const container = document.getElementById('googleDriveContainer');
+        container.innerHTML = '';
+        
+        task.attachments.googleDriveLinks.forEach((link, index) => {
+            if (index === 0) {
+                container.innerHTML = `
+                    <div class="input-group mb-2">
+                        <input type="url" class="form-control form-control-sm" 
+                               placeholder="https://drive.google.com/..." 
+                               name="googleDriveLink" value="${link}">
+                        <button type="button" class="btn btn-sm btn-outline-success" onclick="addGoogleDriveField()">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                    </div>
+                `;
+            } else {
+                addGoogleDriveField();
+                const inputs = container.querySelectorAll('input[name="googleDriveLink"]');
+                inputs[inputs.length - 1].value = link;
+            }
+        });
+    }
+
+    if (task.attachments?.youtubeLinks) {
+        const container = document.getElementById('youTubeContainer');
+        container.innerHTML = '';
+        
+        task.attachments.youtubeLinks.forEach((link, index) => {
+            if (index === 0) {
+                container.innerHTML = `
+                    <div class="input-group mb-2">
+                        <input type="url" class="form-control form-control-sm" 
+                               placeholder="https://youtube.com/watch?v=..." 
+                               name="youTubeLink" value="${link}">
+                        <button type="button" class="btn btn-sm btn-outline-success" onclick="addYouTubeField()">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                    </div>
+                `;
+            } else {
+                addYouTubeField();
+                const inputs = container.querySelectorAll('input[name="youTubeLink"]');
+                inputs[inputs.length - 1].value = link;
+            }
+        });
+    }
+
+    window.editingTaskId = taskId;
+    const addBtn = document.querySelector('#taskModal .btn-orange');
+    if (addBtn) addBtn.textContent = 'Salvar Alterações';
+
+    const modal = new bootstrap.Modal(document.getElementById('taskModal'));
+    modal.show();
+}
+
+function deleteTask(taskId) {
+    if (!confirm('Tem certeza que deseja excluir esta tarefa?')) return;
+
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    if (task.attachments?.files) {
+        task.attachments.files.forEach(async (file) => {
+            try {
+                await deleteFromGitHub(file.path, file.sha);
+            } catch (error) {
+                console.warn(`Erro ao deletar ${file.name}:`, error);
+            }
+        });
+    }
+
+    if (window.db) {
+        window.db.collection('tasks').doc(taskId).delete()
+            .then(() => {
+                console.log('Tarefa excluída com sucesso');
+            })
+            .catch((error) => {
+                console.error('Erro ao excluir tarefa:', error);
+                alert('Erro ao excluir tarefa. Tente novamente.');
             });
-        }
-    }, 1000);
-});
+    }
+}
 
-// ===== FUNÇÕES GLOBAIS =====
+function showTaskDetails(taskId) {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    currentViewingTask = task;
+
+    document.getElementById('taskDetailsTitle').textContent = task.title;
+    document.getElementById('taskDetailsType').textContent = task.type;
+    document.getElementById('taskDetailsType').className = `badge bg-${getTypeColor(task.type)} ms-2`;
+    document.getElementById('taskDetailsDate').textContent = formatDate(task.date);
+    document.getElementById('taskDetailsDescription').textContent = task.description || 'Sem descrição';
+
+    renderExistingAttachments(task.attachments);
+    clearNewAttachmentsForm();
+    hideAddAttachmentsSection();
+
+    const modal = new bootstrap.Modal(document.getElementById('taskDetailsModal'));
+    modal.show();
+}
+
+function showAddAttachmentsSection() {
+    const section = document.getElementById('addAttachmentsSection');
+    if (section) {
+        section.style.display = 'block';
+        clearNewAttachmentsForm();
+    }
+}
+
+function editTaskFromDetails() {
+    if (!currentViewingTask) return;
+    
+    const detailsModal = bootstrap.Modal.getInstance(document.getElementById('taskDetailsModal'));
+    if (detailsModal) detailsModal.hide();
+    
+    setTimeout(() => {
+        editTask(currentViewingTask.id);
+    }, 300);
+}
+
+function deleteTaskFromDetails() {
+    if (!currentViewingTask) return;
+    
+    const detailsModal = bootstrap.Modal.getInstance(document.getElementById('taskDetailsModal'));
+    if (detailsModal) detailsModal.hide();
+    
+    setTimeout(() => {
+        deleteTask(currentViewingTask.id);
+    }, 300);
+}
+
+// ===== FUNÇÕES DE GOOGLE DRIVE =====
+
+function addGoogleDriveField() {
+    const container = document.getElementById('googleDriveContainer');
+    const newField = document.createElement('div');
+    newField.className = 'input-group mb-2';
+    newField.innerHTML = `
+        <input type="url" class="form-control form-control-sm" 
+               placeholder="https://drive.google.com/..." 
+               name="googleDriveLink">
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeGoogleDriveField(this)">
+            <i class="bi bi-trash"></i>
+        </button>
+    `;
+    container.appendChild(newField);
+}
+
+function removeGoogleDriveField(button) {
+    button.closest('.input-group').remove();
+}
+
+function addNewGoogleDriveField() {
+    const container = document.getElementById('newGoogleDriveContainer');
+    const newField = document.createElement('div');
+    newField.className = 'input-group mb-2';
+    newField.innerHTML = `
+        <input type="url" class="form-control form-control-sm" 
+               placeholder="https://drive.google.com/..." 
+               name="newGoogleDriveLink">
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeNewGoogleDriveField(this)">
+            <i class="bi bi-trash"></i>
+        </button>
+    `;
+    container.appendChild(newField);
+}
+
+function removeNewGoogleDriveField(button) {
+    button.closest('.input-group').remove();
+}
+
+function removeGoogleDriveLink(index) {
+    if (!currentViewingTask || !currentViewingTask.attachments?.googleDriveLinks) return;
+    
+    if (!confirm('Tem certeza que deseja remover este link do Google Drive?')) return;
+    
+    currentViewingTask.attachments.googleDriveLinks.splice(index, 1);
+    
+    if (currentViewingTask.attachments.googleDriveLinks.length === 0) {
+        delete currentViewingTask.attachments.googleDriveLinks;
+    }
+    
+    if (window.db) {
+        window.db.collection('tasks').doc(currentViewingTask.id).update({
+            attachments: currentViewingTask.attachments
+        }).then(() => {
+            renderExistingAttachments(currentViewingTask.attachments);
+            loadTasks();
+        });
+    }
+}
+
+// ===== FUNÇÕES DE YOUTUBE =====
+
+function addYouTubeField() {
+    const container = document.getElementById('youTubeContainer');
+    const newField = document.createElement('div');
+    newField.className = 'input-group mb-2';
+    newField.innerHTML = `
+        <input type="url" class="form-control form-control-sm" 
+               placeholder="https://youtube.com/watch?v=..." 
+               name="youTubeLink">
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeYouTubeField(this)">
+            <i class="bi bi-trash"></i>
+        </button>
+    `;
+    container.appendChild(newField);
+}
+
+function removeYouTubeField(button) {
+    button.closest('.input-group').remove();
+}
+
+function addNewYouTubeField() {
+    const container = document.getElementById('newYouTubeContainer');
+    const newField = document.createElement('div');
+    newField.className = 'input-group mb-2';
+    newField.innerHTML = `
+        <input type="url" class="form-control form-control-sm" 
+               placeholder="https://youtube.com/watch?v=..." 
+               name="newYouTubeLink">
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeNewYouTubeField(this)">
+            <i class="bi bi-trash"></i>
+        </button>
+    `;
+    container.appendChild(newField);
+}
+
+function removeNewYouTubeField(button) {
+    button.closest('.input-group').remove();
+}
+
+function removeYouTubeLink(index) {
+    if (!currentViewingTask || !currentViewingTask.attachments?.youtubeLinks) return;
+    
+    if (!confirm('Tem certeza que deseja remover este vídeo do YouTube?')) return;
+    
+    currentViewingTask.attachments.youtubeLinks.splice(index, 1);
+    
+    if (currentViewingTask.attachments.youtubeLinks.length === 0) {
+        delete currentViewingTask.attachments.youtubeLinks;
+    }
+    
+    if (window.db) {
+        window.db.collection('tasks').doc(currentViewingTask.id).update({
+            attachments: currentViewingTask.attachments
+        }).then(() => {
+            renderExistingAttachments(currentViewingTask.attachments);
+            loadTasks();
+        });
+    }
+}
+
+// ===== FUNÇÕES DE ARQUIVOS =====
+
+function removeNewFile(index) {
+    const fileInput = document.getElementById('newTaskFiles');
+    if (!fileInput || !fileInput.files) return;
+    
+    const dt = new DataTransfer();
+    const files = Array.from(fileInput.files);
+    
+    files.forEach((file, i) => {
+        if (i !== index) {
+            dt.items.add(file);
+        }
+    });
+    
+    fileInput.files = dt.files;
+    fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function removeAttachedFile(index) {
+    if (!currentViewingTask || !currentViewingTask.attachments?.files) return;
+    
+    const file = currentViewingTask.attachments.files[index];
+    if (!confirm(`Tem certeza que deseja remover o arquivo "${file.name}"?`)) return;
+    
+    deleteFromGitHub(file.path, file.sha).catch(console.warn);
+    
+    currentViewingTask.attachments.files.splice(index, 1);
+    
+    if (currentViewingTask.attachments.files.length === 0) {
+        delete currentViewingTask.attachments.files;
+    }
+    
+    if (window.db) {
+        window.db.collection('tasks').doc(currentViewingTask.id).update({
+            attachments: currentViewingTask.attachments
+        }).then(() => {
+            renderExistingAttachments(currentViewingTask.attachments);
+            loadTasks();
+        });
+    }
+}
+
+// ===== EXPORTAR FUNÇÕES GLOBAIS =====
 
 Object.assign(window, {
-    // CRUD de tarefas
     addTask,
     editTask,
     deleteTask,
     loadTasks,
     renderWeekTasks,
-    
-    // Modal de detalhes
     showTaskDetails,
     showAddAttachmentsSection,
     hideAddAttachmentsSection,
     editTaskFromDetails,
     deleteTaskFromDetails,
-    
-    // Anexos - Google Drive
     addGoogleDriveField,
     removeGoogleDriveField,
     addNewGoogleDriveField,
     removeNewGoogleDriveField,
     removeGoogleDriveLink,
-    
-    // Anexos - YouTube
     addYouTubeField,
     removeYouTubeField,
     addNewYouTubeField,
     removeNewYouTubeField,
     removeYouTubeLink,
-    
-    // Anexos - Arquivos
     removeNewFile,
     addNewAttachments,
-    removeAttachedFile
+    removeAttachedFile,
+    clearTaskForm,
+    clearNewAttachmentsForm
+});
+
+// ===== INICIALIZAÇÃO =====
+document.addEventListener('DOMContentLoaded', function() {
+    const taskFiles = document.getElementById('taskFiles');
+    if (taskFiles) {
+        taskFiles.addEventListener('change', function() {
+            const preview = document.getElementById('filesPreview');
+            if (!preview) return;
+            
+            const files = Array.from(this.files);
+            if (files.length === 0) {
+                preview.innerHTML = '';
+                return;
+            }
+            
+            preview.innerHTML = files.map((file, index) => `
+                <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                    <div>
+                        <i class="bi bi-${getFileIcon(file.type)} text-${getFileColor(file.type)}"></i>
+                        <span class="ms-2">${file.name}</span>
+                        <small class="text-muted ms-2">(${formatFileSize(file.size)})</small>
+                    </div>
+                </div>
+            `).join('');
+        });
+    }
+    
+    const newTaskFiles = document.getElementById('newTaskFiles');
+    if (newTaskFiles) {
+        newTaskFiles.addEventListener('change', function() {
+            const preview = document.getElementById('newFilesPreview');
+            if (!preview) return;
+            
+            const files = Array.from(this.files);
+            if (files.length === 0) {
+                preview.innerHTML = '';
+                return;
+            }
+            
+            preview.innerHTML = files.map((file, index) => `
+                <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                    <div>
+                        <i class="bi bi-${getFileIcon(file.type)} text-${getFileColor(file.type)}"></i>
+                        <span class="ms-2">${file.name}</span>
+                        <small class="text-muted ms-2">(${formatFileSize(file.size)})</small>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeNewFile(${index})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            `).join('');
+        });
+    }
+    
+    const taskModal = document.getElementById('taskModal');
+    if (taskModal) {
+        taskModal.addEventListener('hidden.bs.modal', function() {
+            if (!window.editingTaskId) {
+                clearTaskForm();
+            }
+            window.editingTaskId = null;
+            const addBtn = document.querySelector('#taskModal .btn-orange');
+            if (addBtn) addBtn.textContent = 'Adicionar';
+        });
+    }
+    
+    console.log('✅ Event listeners do tasks.js configurados');
 });
