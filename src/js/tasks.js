@@ -72,6 +72,59 @@ function getFileColor(type) {
     return 'secondary';
 }
 
+function renderAttachmentIcons(attachments) {
+    if (!attachments) return '';
+    
+    let icons = '';
+    
+    // Google Drive Links
+    if (attachments.googleDriveLinks?.length > 0) {
+        icons += `
+            <span class="badge bg-primary me-1" title="${attachments.googleDriveLinks.length} link(s) Google Drive">
+                <i class="bi bi-google"></i> ${attachments.googleDriveLinks.length}
+            </span>
+        `;
+    }
+    
+    // YouTube Links
+    if (attachments.youtubeLinks?.length > 0) {
+        icons += `
+            <span class="badge bg-danger me-1" title="${attachments.youtubeLinks.length} vídeo(s) YouTube">
+                <i class="bi bi-youtube"></i> ${attachments.youtubeLinks.length}
+            </span>
+        `;
+    }
+    
+    // Arquivos por tipo
+    if (attachments.files?.length > 0) {
+        const fileTypes = {};
+        
+        attachments.files.forEach(file => {
+            const type = file.type || 'application/octet-stream';
+            if (type.includes('pdf')) {
+                fileTypes.pdf = (fileTypes.pdf || 0) + 1;
+            } else if (type.includes('powerpoint') || type.includes('presentation')) {
+                fileTypes.ppt = (fileTypes.ppt || 0) + 1;
+            } else if (type.includes('word') || type.includes('document')) {
+                fileTypes.doc = (fileTypes.doc || 0) + 1;
+            } else if (type.includes('image')) {
+                fileTypes.img = (fileTypes.img || 0) + 1;
+            } else {
+                fileTypes.file = (fileTypes.file || 0) + 1;
+            }
+        });
+        
+        // Renderizar badges por tipo
+        if (fileTypes.pdf) icons += `<span class="badge bg-danger me-1" title="${fileTypes.pdf} PDF"><i class="bi bi-file-earmark-pdf"></i> ${fileTypes.pdf}</span>`;
+        if (fileTypes.ppt) icons += `<span class="badge bg-warning me-1" title="${fileTypes.ppt} PPT"><i class="bi bi-file-earmark-slides"></i> ${fileTypes.ppt}</span>`;
+        if (fileTypes.doc) icons += `<span class="badge bg-info me-1" title="${fileTypes.doc} DOC"><i class="bi bi-file-earmark-word"></i> ${fileTypes.doc}</span>`;
+        if (fileTypes.img) icons += `<span class="badge bg-success me-1" title="${fileTypes.img} IMG"><i class="bi bi-file-earmark-image"></i> ${fileTypes.img}</span>`;
+        if (fileTypes.file) icons += `<span class="badge bg-secondary me-1" title="${fileTypes.file} files"><i class="bi bi-file-earmark"></i> ${fileTypes.file}</span>`;
+    }
+    
+    return icons ? `<div class="mt-2">${icons}</div>` : '';
+}
+
 // ===== FUNÇÕES DO GITHUB =====
 
 async function uploadToGitHub(file, taskId) {
@@ -169,7 +222,6 @@ function loadTasks() {
                 tasks = [];
                 snapshot.forEach((doc) => {
                     const task = { id: doc.id, ...doc.data() };
-                    // Exclui tarefas passadas
                     if (task.date < todayStr) {
                         window.db.collection('tasks').doc(task.id).delete();
                     } else {
@@ -210,122 +262,38 @@ function renderTasks() {
     const todayStr = new Date().toISOString().split('T')[0];
     const nextTaskIndex = tasks.findIndex(task => task.date >= todayStr);
 
-    tasksList.innerHTML = tasks.map((task, idx) => {
-        // Função para renderizar ícones de anexos
-        function renderAttachmentIcons(attachments) {
-            if (!attachments) return '';
-            
-            let icons = '';
-            
-            // Ícone para Google Drive Links
-            if (attachments.googleDriveLinks?.length > 0) {
-                icons += `
-                    <span class="badge bg-primary me-1" title="${attachments.googleDriveLinks.length} link(s) Google Drive">
-                        <i class="bi bi-google"></i> ${attachments.googleDriveLinks.length}
-                    </span>
-                `;
-            }
-            
-            // Ícones para arquivos por tipo
-            if (attachments.files?.length > 0) {
-                const fileTypes = {};
-                attachments.files.forEach(file => {
-                    const type = file.type || 'application/octet-stream';
-                    if (type.includes('pdf')) {
-                        fileTypes.pdf = (fileTypes.pdf || 0) + 1;
-                    } else if (type.includes('powerpoint') || type.includes('presentation')) {
-                        fileTypes.ppt = (fileTypes.ppt || 0) + 1;
-                    } else if (type.includes('word') || type.includes('document')) {
-                        fileTypes.doc = (fileTypes.doc || 0) + 1;
-                    } else if (type.includes('image')) {
-                        fileTypes.img = (fileTypes.img || 0) + 1;
-                    } else {
-                        fileTypes.file = (fileTypes.file || 0) + 1;
-                    }
-                });
-                
-                // PDF
-                if (fileTypes.pdf) {
-                    icons += `
-                        <span class="badge bg-danger me-1" title="${fileTypes.pdf} arquivo(s) PDF">
-                            <i class="bi bi-file-earmark-pdf"></i> ${fileTypes.pdf}
-                        </span>
-                    `;
-                }
-                
-                // PowerPoint
-                if (fileTypes.ppt) {
-                    icons += `
-                        <span class="badge bg-warning me-1" title="${fileTypes.ppt} apresentação(ões)">
-                            <i class="bi bi-file-earmark-slides"></i> ${fileTypes.ppt}
-                        </span>
-                    `;
-                }
-                
-                // Word
-                if (fileTypes.doc) {
-                    icons += `
-                        <span class="badge bg-info me-1" title="${fileTypes.doc} documento(s)">
-                            <i class="bi bi-file-earmark-word"></i> ${fileTypes.doc}
-                        </span>
-                    `;
-                }
-                
-                // Imagens
-                if (fileTypes.img) {
-                    icons += `
-                        <span class="badge bg-success me-1" title="${fileTypes.img} imagem(ns)">
-                            <i class="bi bi-file-earmark-image"></i> ${fileTypes.img}
-                        </span>
-                    `;
-                }
-                
-                // Outros arquivos
-                if (fileTypes.file) {
-                    icons += `
-                        <span class="badge bg-secondary me-1" title="${fileTypes.file} arquivo(s)">
-                            <i class="bi bi-file-earmark"></i> ${fileTypes.file}
-                        </span>
-                    `;
-                }
-            }
-            
-            return icons ? `<div class="mt-2">${icons}</div>` : '';
-        }
-
-        return `
-            <div class="col-md-6 col-lg-4 mb-3">
-                <div class="card task-card task-type-${task.type} ${idx === nextTaskIndex ? 'border border-4 border-orange' : ''}" 
-                     style="cursor: pointer;" 
-                     onclick="showTaskDetails('${task.id}')">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <h6 class="card-title mb-0">${escapeHtml(task.title)}</h6>
-                            <span class="badge bg-${getTypeColor(task.type)}">${task.type}</span>
-                        </div>
-                        <p class="card-text small">${escapeHtml(task.description) || 'Sem descrição'}</p>
-                        
-                        ${renderAttachmentIcons(task.attachments)}
-                        
-                        <div class="d-flex justify-content-between align-items-center mt-2">
-                            <small>
-                                <i class="bi bi-calendar-event"></i>
-                                ${formatDate(task.date)}
-                            </small>
-                            <div onclick="event.stopPropagation();">
-                                <button class="btn btn-sm btn-outline-primary me-1" onclick="editTask('${task.id}')">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="deleteTask('${task.id}')">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </div>
+    tasksList.innerHTML = tasks.map((task, idx) => `
+        <div class="col-md-6 col-lg-4 mb-3">
+            <div class="card task-card task-type-${task.type} ${idx === nextTaskIndex ? 'border border-4 border-orange' : ''}" 
+                 style="cursor: pointer;" 
+                 onclick="showTaskDetails('${task.id}')">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="card-title mb-0">${escapeHtml(task.title)}</h6>
+                        <span class="badge bg-${getTypeColor(task.type)}">${task.type}</span>
+                    </div>
+                    <p class="card-text small">${escapeHtml(task.description) || 'Sem descrição'}</p>
+                    
+                    ${renderAttachmentIcons(task.attachments)}
+                    
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <small>
+                            <i class="bi bi-calendar-event"></i>
+                            ${formatDate(task.date)}
+                        </small>
+                        <div onclick="event.stopPropagation();">
+                            <button class="btn btn-sm btn-outline-primary me-1" onclick="editTask('${task.id}')">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteTask('${task.id}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
-        `;
-    }).join('');
+        </div>
+    `).join('');
 }
 
 function renderWeekTasks() {
@@ -362,97 +330,44 @@ function renderWeekTasks() {
 
     const nextTaskIndex = weekTasks.findIndex(task => task.date >= today.toISOString().split('T')[0]);
     
-    tasksWeekList.innerHTML = weekTasks.map((task, idx) => {
-        // Função para renderizar ícones de anexos (mesma da renderTasks)
-        function renderAttachmentIcons(attachments) {
-            if (!attachments) return '';
-            
-            let icons = '';
-            
-            if (attachments.googleDriveLinks?.length > 0) {
-                icons += `
-                    <span class="badge bg-primary me-1" title="${attachments.googleDriveLinks.length} link(s) Google Drive">
-                        <i class="bi bi-google"></i> ${attachments.googleDriveLinks.length}
-                    </span>
-                `;
-            }
-            
-            if (attachments.files?.length > 0) {
-                const fileTypes = {};
-                attachments.files.forEach(file => {
-                    const type = file.type || 'application/octet-stream';
-                    if (type.includes('pdf')) {
-                        fileTypes.pdf = (fileTypes.pdf || 0) + 1;
-                    } else if (type.includes('powerpoint') || type.includes('presentation')) {
-                        fileTypes.ppt = (fileTypes.ppt || 0) + 1;
-                    } else if (type.includes('word') || type.includes('document')) {
-                        fileTypes.doc = (fileTypes.doc || 0) + 1;
-                    } else if (type.includes('image')) {
-                        fileTypes.img = (fileTypes.img || 0) + 1;
-                    } else {
-                        fileTypes.file = (fileTypes.file || 0) + 1;
-                    }
-                });
-                
-                if (fileTypes.pdf) {
-                    icons += `<span class="badge bg-danger me-1" title="${fileTypes.pdf} PDF"><i class="bi bi-file-earmark-pdf"></i> ${fileTypes.pdf}</span>`;
-                }
-                if (fileTypes.ppt) {
-                    icons += `<span class="badge bg-warning me-1" title="${fileTypes.ppt} PPT"><i class="bi bi-file-earmark-slides"></i> ${fileTypes.ppt}</span>`;
-                }
-                if (fileTypes.doc) {
-                    icons += `<span class="badge bg-info me-1" title="${fileTypes.doc} DOC"><i class="bi bi-file-earmark-word"></i> ${fileTypes.doc}</span>`;
-                }
-                if (fileTypes.img) {
-                    icons += `<span class="badge bg-success me-1" title="${fileTypes.img} IMG"><i class="bi bi-file-earmark-image"></i> ${fileTypes.img}</span>`;
-                }
-                if (fileTypes.file) {
-                    icons += `<span class="badge bg-secondary me-1" title="${fileTypes.file} files"><i class="bi bi-file-earmark"></i> ${fileTypes.file}</span>`;
-                }
-            }
-            
-            return icons ? `<div class="mt-2">${icons}</div>` : '';
-        }
-
-        return `
-            <div class="col-md-6 col-lg-4 mb-3">
-                <div class="card task-card task-type-${task.type} ${idx === nextTaskIndex ? 'border border-4 border-orange' : ''}" 
-                     style="cursor: pointer;" 
-                     onclick="showTaskDetails('${task.id}')">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
-                            <h6 class="card-title mb-0">${escapeHtml(task.title)}</h6>
-                            <span class="badge bg-${getTypeColor(task.type)}">${task.type}</span>
-                        </div>
-                        <p class="card-text small">${escapeHtml(task.description) || 'Sem descrição'}</p>
-                        
-                        ${renderAttachmentIcons(task.attachments)}
-                        
-                        <div class="d-flex justify-content-between align-items-center mt-2">
-                            <small>
-                                <i class="bi bi-calendar-event"></i>
-                                ${formatDate(task.date)}
-                            </small>
-                            <div onclick="event.stopPropagation();">
-                                <button class="btn btn-sm btn-outline-primary me-1" onclick="editTask('${task.id}')">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="deleteTask('${task.id}')">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </div>
+    tasksWeekList.innerHTML = weekTasks.map((task, idx) => `
+        <div class="col-md-6 col-lg-4 mb-3">
+            <div class="card task-card task-type-${task.type} ${idx === nextTaskIndex ? 'border border-4 border-orange' : ''}" 
+                 style="cursor: pointer;" 
+                 onclick="showTaskDetails('${task.id}')">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h6 class="card-title mb-0">${escapeHtml(task.title)}</h6>
+                        <span class="badge bg-${getTypeColor(task.type)}">${task.type}</span>
+                    </div>
+                    <p class="card-text small">${escapeHtml(task.description) || 'Sem descrição'}</p>
+                    
+                    ${renderAttachmentIcons(task.attachments)}
+                    
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <small>
+                            <i class="bi bi-calendar-event"></i>
+                            ${formatDate(task.date)}
+                        </small>
+                        <div onclick="event.stopPropagation();">
+                            <button class="btn btn-sm btn-outline-primary me-1" onclick="editTask('${task.id}')">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteTask('${task.id}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
-        `;
-    }).join('');
+        </div>
+    `).join('');
 }
 
 function renderExistingAttachments(attachments) {
     const container = document.getElementById('existingAttachments');
     
-    if (!attachments || (!attachments.googleDriveLinks?.length && !attachments.files?.length)) {
+    if (!attachments || (!attachments.googleDriveLinks?.length && !attachments.youtubeLinks?.length && !attachments.files?.length)) {
         container.innerHTML = `
             <div class="text-center text-muted py-3">
                 <i class="bi bi-inbox" style="font-size: 2rem;"></i>
@@ -475,6 +390,24 @@ function renderExistingAttachments(attachments) {
                         </a>
                     </div>
                     <button class="btn btn-sm btn-outline-danger" onclick="removeGoogleDriveLink(${index})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            `;
+        });
+    }
+
+    // YouTube Links
+    if (attachments.youtubeLinks?.length > 0) {
+        attachments.youtubeLinks.forEach((link, index) => {
+            html += `
+                <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                    <div>
+                        <a href="${link}" target="_blank" class="btn btn-sm btn-outline-danger">
+                            <i class="bi bi-youtube"></i> YouTube ${index + 1}
+                        </a>
+                    </div>
+                    <button class="btn btn-sm btn-outline-danger" onclick="removeYouTubeLink(${index})">
                         <i class="bi bi-trash"></i>
                     </button>
                 </div>
@@ -520,11 +453,33 @@ function addTask() {
         return;
     }
 
+    // Coletar anexos
+    const attachments = {};
+
+    // Google Drive Links
+    const googleDriveInputs = document.querySelectorAll('input[name="googleDriveLink"]');
+    const googleDriveLinks = Array.from(googleDriveInputs)
+        .map(input => input.value.trim())
+        .filter(link => link);
+    if (googleDriveLinks.length > 0) {
+        attachments.googleDriveLinks = googleDriveLinks;
+    }
+
+    // YouTube Links
+    const youTubeInputs = document.querySelectorAll('input[name="youTubeLink"]');
+    const youTubeLinks = Array.from(youTubeInputs)
+        .map(input => input.value.trim())
+        .filter(link => link);
+    if (youTubeLinks.length > 0) {
+        attachments.youtubeLinks = youTubeLinks;
+    }
+
     const task = {
         title: title.trim(),
         type,
         date,
         description: description.trim(),
+        attachments: Object.keys(attachments).length > 0 ? attachments : null,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         createdBy: 'Usuário'
     };
@@ -642,6 +597,51 @@ function deleteTaskFromDetails() {
 
 // ===== FUNÇÕES DE GERENCIAMENTO DE ANEXOS =====
 
+// Google Drive - Modal de criação
+function addGoogleDriveField() {
+    const container = document.getElementById('googleDriveContainer');
+    if (!container) return;
+    
+    const newField = document.createElement('div');
+    newField.className = 'input-group mb-2';
+    newField.innerHTML = `
+        <input type="url" class="form-control form-control-sm" 
+               placeholder="https://drive.google.com/..." 
+               name="googleDriveLink">
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeGoogleDriveField(this)">
+            <i class="bi bi-trash"></i>
+        </button>
+    `;
+    container.appendChild(newField);
+}
+
+function removeGoogleDriveField(button) {
+    button.parentElement.remove();
+}
+
+// YouTube - Modal de criação
+function addYouTubeField() {
+    const container = document.getElementById('youTubeContainer');
+    if (!container) return;
+    
+    const newField = document.createElement('div');
+    newField.className = 'input-group mb-2';
+    newField.innerHTML = `
+        <input type="url" class="form-control form-control-sm" 
+               placeholder="https://youtube.com/watch?v=..." 
+               name="youTubeLink">
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeYouTubeField(this)">
+            <i class="bi bi-trash"></i>
+        </button>
+    `;
+    container.appendChild(newField);
+}
+
+function removeYouTubeField(button) {
+    button.parentElement.remove();
+}
+
+// Google Drive - Modal de detalhes
 function addNewGoogleDriveField() {
     const container = document.getElementById('newGoogleDriveContainer');
     if (!container) return;
@@ -663,6 +663,29 @@ function removeNewGoogleDriveField(button) {
     button.parentElement.remove();
 }
 
+// YouTube - Modal de detalhes
+function addNewYouTubeField() {
+    const container = document.getElementById('newYouTubeContainer');
+    if (!container) return;
+    
+    const newField = document.createElement('div');
+    newField.className = 'input-group mb-2';
+    newField.innerHTML = `
+        <input type="url" class="form-control form-control-sm" 
+               placeholder="https://youtube.com/watch?v=..." 
+               name="newYouTubeLink">
+        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeNewYouTubeField(this)">
+            <i class="bi bi-trash"></i>
+        </button>
+    `;
+    container.appendChild(newField);
+}
+
+function removeNewYouTubeField(button) {
+    button.parentElement.remove();
+}
+
+// Arquivos
 function removeNewFile(index) {
     const fileInput = document.getElementById('newTaskFiles');
     if (!fileInput) return;
@@ -677,6 +700,104 @@ function removeNewFile(index) {
     fileInput.dispatchEvent(new Event('change'));
 }
 
+// Remoção de anexos existentes
+async function removeGoogleDriveLink(index) {
+    if (!currentViewingTask || !confirm('Remover este link do Google Drive?')) return;
+
+    try {
+        const attachments = { ...currentViewingTask.attachments };
+        if (attachments.googleDriveLinks && attachments.googleDriveLinks.length > index) {
+            attachments.googleDriveLinks.splice(index, 1);
+
+            if (window.db) {
+                await window.db.collection('tasks').doc(currentViewingTask.id).update({ attachments });
+                
+                currentViewingTask.attachments = attachments;
+                
+                const taskIndex = tasks.findIndex(t => t.id === currentViewingTask.id);
+                if (taskIndex !== -1) {
+                    tasks[taskIndex].attachments = attachments;
+                }
+                
+                renderExistingAttachments(attachments);
+                loadTasks();
+                
+                alert('Link removido com sucesso!');
+            }
+        }
+
+    } catch (error) {
+        console.error('Erro ao remover link:', error);
+        alert('Erro ao remover link.');
+    }
+}
+
+async function removeYouTubeLink(index) {
+    if (!currentViewingTask || !confirm('Remover este link do YouTube?')) return;
+
+    try {
+        const attachments = { ...currentViewingTask.attachments };
+        if (attachments.youtubeLinks && attachments.youtubeLinks.length > index) {
+            attachments.youtubeLinks.splice(index, 1);
+
+            if (window.db) {
+                await window.db.collection('tasks').doc(currentViewingTask.id).update({ attachments });
+                
+                currentViewingTask.attachments = attachments;
+                
+                const taskIndex = tasks.findIndex(t => t.id === currentViewingTask.id);
+                if (taskIndex !== -1) {
+                    tasks[taskIndex].attachments = attachments;
+                }
+                
+                renderExistingAttachments(attachments);
+                loadTasks();
+                
+                alert('Link do YouTube removido com sucesso!');
+            }
+        }
+
+    } catch (error) {
+        console.error('Erro ao remover link do YouTube:', error);
+        alert('Erro ao remover link do YouTube.');
+    }
+}
+
+async function removeAttachedFile(index) {
+    if (!currentViewingTask || !confirm('Remover este arquivo? Ele será deletado permanentemente.')) return;
+
+    try {
+        const attachments = { ...currentViewingTask.attachments };
+        if (attachments.files && attachments.files.length > index) {
+            const fileToDelete = attachments.files[index];
+            
+            await deleteFromGitHub(fileToDelete.path, fileToDelete.sha);
+            attachments.files.splice(index, 1);
+
+            if (window.db) {
+                await window.db.collection('tasks').doc(currentViewingTask.id).update({ attachments });
+                
+                currentViewingTask.attachments = attachments;
+                
+                const taskIndex = tasks.findIndex(t => t.id === currentViewingTask.id);
+                if (taskIndex !== -1) {
+                    tasks[taskIndex].attachments = attachments;
+                }
+                
+                renderExistingAttachments(attachments);
+                loadTasks();
+                
+                alert('Arquivo removido com sucesso!');
+            }
+        }
+
+    } catch (error) {
+        console.error('Erro ao remover arquivo:', error);
+        alert('Erro ao remover arquivo.');
+    }
+}
+
+// Adição de novos anexos
 async function addNewAttachments() {
     if (!currentViewingTask) return;
 
@@ -690,11 +811,16 @@ async function addNewAttachments() {
         const newGoogleDriveLinks = Array.from(newGoogleDriveInputs)
             .map(input => input.value.trim())
             .filter(link => link);
+
+        const newYouTubeInputs = document.querySelectorAll('input[name="newYouTubeLink"]');
+        const newYouTubeLinks = Array.from(newYouTubeInputs)
+            .map(input => input.value.trim())
+            .filter(link => link);
         
         const newFileInput = document.getElementById('newTaskFiles');
         const newFiles = newFileInput ? Array.from(newFileInput.files) : [];
 
-        if (newGoogleDriveLinks.length === 0 && newFiles.length === 0) {
+        if (newGoogleDriveLinks.length === 0 && newYouTubeLinks.length === 0 && newFiles.length === 0) {
             alert('Selecione pelo menos um link ou arquivo para adicionar.');
             return;
         }
@@ -711,6 +837,11 @@ async function addNewAttachments() {
         if (newGoogleDriveLinks.length > 0) {
             const existingLinks = currentAttachments.googleDriveLinks || [];
             currentAttachments.googleDriveLinks = [...existingLinks, ...newGoogleDriveLinks];
+        }
+
+        if (newYouTubeLinks.length > 0) {
+            const existingYouTubeLinks = currentAttachments.youtubeLinks || [];
+            currentAttachments.youtubeLinks = [...existingYouTubeLinks, ...newYouTubeLinks];
         }
 
         const existingFiles = currentAttachments.files || [];
@@ -751,71 +882,6 @@ async function addNewAttachments() {
     }
 }
 
-async function removeGoogleDriveLink(index) {
-    if (!currentViewingTask || !confirm('Remover este link do Google Drive?')) return;
-
-    try {
-        const attachments = { ...currentViewingTask.attachments };
-        if (attachments.googleDriveLinks && attachments.googleDriveLinks.length > index) {
-            attachments.googleDriveLinks.splice(index, 1);
-
-            if (window.db) {
-                await window.db.collection('tasks').doc(currentViewingTask.id).update({ attachments });
-                
-                currentViewingTask.attachments = attachments;
-                
-                const taskIndex = tasks.findIndex(t => t.id === currentViewingTask.id);
-                if (taskIndex !== -1) {
-                    tasks[taskIndex].attachments = attachments;
-                }
-                
-                renderExistingAttachments(attachments);
-                loadTasks();
-                
-                alert('Link removido com sucesso!');
-            }
-        }
-
-    } catch (error) {
-        console.error('Erro ao remover link:', error);
-        alert('Erro ao remover link.');
-    }
-}
-
-async function removeAttachedFile(index) {
-    if (!currentViewingTask || !confirm('Remover este arquivo? Ele será deletado permanentemente.')) return;
-
-    try {
-        const attachments = { ...currentViewingTask.attachments };
-        if (attachments.files && attachments.files.length > index) {
-            const fileToDelete = attachments.files[index];
-            
-            await deleteFromGitHub(fileToDelete.path, fileToDelete.sha);
-            attachments.files.splice(index, 1);
-
-            if (window.db) {
-                await window.db.collection('tasks').doc(currentViewingTask.id).update({ attachments });
-                
-                currentViewingTask.attachments = attachments;
-                
-                const taskIndex = tasks.findIndex(t => t.id === currentViewingTask.id);
-                if (taskIndex !== -1) {
-                    tasks[taskIndex].attachments = attachments;
-                }
-                
-                renderExistingAttachments(attachments);
-                loadTasks();
-                
-                alert('Arquivo removido com sucesso!');
-            }
-        }
-
-    } catch (error) {
-        console.error('Erro ao remover arquivo:', error);
-        alert('Erro ao remover arquivo.');
-    }
-}
-
 // ===== EVENT LISTENERS =====
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -852,19 +918,37 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // ===== FUNÇÕES GLOBAIS =====
 
-window.addTask = addTask;
-window.editTask = editTask;
-window.deleteTask = deleteTask;
-window.loadTasks = loadTasks;
-window.renderWeekTasks = renderWeekTasks;
-window.showTaskDetails = showTaskDetails;
-window.showAddAttachmentsSection = showAddAttachmentsSection;
-window.hideAddAttachmentsSection = hideAddAttachmentsSection;
-window.editTaskFromDetails = editTaskFromDetails;
-window.deleteTaskFromDetails = deleteTaskFromDetails;
-window.addNewGoogleDriveField = addNewGoogleDriveField;
-window.removeNewGoogleDriveField = removeNewGoogleDriveField;
-window.removeNewFile = removeNewFile;
-window.addNewAttachments = addNewAttachments;
-window.removeGoogleDriveLink = removeGoogleDriveLink;
-window.removeAttachedFile = removeAttachedFile;
+Object.assign(window, {
+    // CRUD de tarefas
+    addTask,
+    editTask,
+    deleteTask,
+    loadTasks,
+    renderWeekTasks,
+    
+    // Modal de detalhes
+    showTaskDetails,
+    showAddAttachmentsSection,
+    hideAddAttachmentsSection,
+    editTaskFromDetails,
+    deleteTaskFromDetails,
+    
+    // Anexos - Google Drive
+    addGoogleDriveField,
+    removeGoogleDriveField,
+    addNewGoogleDriveField,
+    removeNewGoogleDriveField,
+    removeGoogleDriveLink,
+    
+    // Anexos - YouTube
+    addYouTubeField,
+    removeYouTubeField,
+    addNewYouTubeField,
+    removeNewYouTubeField,
+    removeYouTubeLink,
+    
+    // Anexos - Arquivos
+    removeNewFile,
+    addNewAttachments,
+    removeAttachedFile
+});

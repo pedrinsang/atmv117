@@ -148,6 +148,23 @@
                                     </div>
                                 </div>
                                 
+                                <!-- YouTube - NOVO -->
+                                <div class="mb-3">
+                                    <label for="taskYouTubeLinks" class="form-label small">
+                                        <i class="bi bi-youtube text-danger"></i> Links do YouTube
+                                    </label>
+                                    <div id="youTubeContainer">
+                                        <div class="input-group mb-2">
+                                            <input type="url" class="form-control form-control-sm" 
+                                                   placeholder="https://youtube.com/watch?v=..." 
+                                                   name="youTubeLink">
+                                            <button type="button" class="btn btn-sm btn-outline-success" onclick="addYouTubeField()">
+                                                <i class="bi bi-plus"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
                                 <!-- Arquivos -->
                                 <div class="mb-3">
                                     <label for="taskFiles" class="form-label small">
@@ -284,6 +301,23 @@
                                                placeholder="https://drive.google.com/..." 
                                                name="newGoogleDriveLink">
                                         <button type="button" class="btn btn-sm btn-outline-success" onclick="addNewGoogleDriveField()">
+                                            <i class="bi bi-plus"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- YouTube Links - NOVO -->
+                            <div class="mb-3">
+                                <label class="form-label small">
+                                    <i class="bi bi-youtube text-danger"></i> Novos Links do YouTube
+                                </label>
+                                <div id="newYouTubeContainer">
+                                    <div class="input-group mb-2">
+                                        <input type="url" class="form-control form-control-sm" 
+                                               placeholder="https://youtube.com/watch?v=..." 
+                                               name="newYouTubeLink">
+                                        <button type="button" class="btn btn-sm btn-outline-success" onclick="addNewYouTubeField()">
                                             <i class="bi bi-plus"></i>
                                         </button>
                                     </div>
