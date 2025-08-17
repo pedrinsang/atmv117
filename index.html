@@ -11,6 +11,7 @@
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="src/css/styles.css?v=1749688002735.0.0">
+    <link rel="stylesheet" href="src/css/auth-styles.css">
     
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
@@ -30,14 +31,14 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <!-- CSP Atualizado para Bootstrap -->
+    <!-- CSP Atualizado para Bootstrap e endpoints Firebase -->
     <meta http-equiv="Content-Security-Policy" content="
         default-src 'self'; 
         script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://cdn.jsdelivr.net; 
         style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; 
         font-src 'self' https://cdn.jsdelivr.net; 
         img-src 'self' data: https:; 
-        connect-src 'self' https://firestore.googleapis.com https://atmv117.firebaseapp.com https://api.github.com https://raw.githubusercontent.com;
+        connect-src 'self' https://firestore.googleapis.com https://atmv117.firebaseapp.com https://api.github.com https://raw.githubusercontent.com https://securetoken.googleapis.com https://www.googleapis.com https://identitytoolkit.googleapis.com https://accounts.google.com;
     ">
 </head>
 <body>
@@ -45,18 +46,44 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-orange">
         <div class="container">
             <a class="navbar-brand fw-bold" href="#">
-                <i class="bi bi-calendar-check me-2"></i>
-                Organizador Tarefas ATMV 117
+                <i class="bi bi-calendar-check brand-icon me-2" aria-hidden="true"></i>
+                <span class="brand-text">ATMV 117</span>
             </a>
             
-            <button class="btn btn-outline-light ms-auto" onclick="abrirCalendarioTelaCheia()">
-                <i class="bi bi-calendar3"></i>
-            </button>
+            <div class="d-flex align-items-center ms-auto">
+                <!-- User Info -->
+                <div class="dropdown me-2" id="userDropdown" style="display: none;">
+                    <button class="btn btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-person-circle me-1"></i>
+                        <span id="userDisplayName">Usuário</span>
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><h6 class="dropdown-header" id="userEmail">usuario@email.com</h6></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li id="adminPanelOption" style="display: none;">
+                            <a class="dropdown-item" href="admin.html">
+                                <i class="bi bi-shield-check me-2"></i>Painel Admin
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="#" onclick="logout()">
+                                <i class="bi bi-box-arrow-right me-2"></i>Sair
+                            </a>
+                        </li>
+                    </ul>
+                </div>
 
-            <!-- Install PWA Button -->
-            <button class="btn btn-outline-light ms-2" id="installPwaBtn" style="display:none;">
-                <i class="bi bi-download"></i> Instalar App
-            </button>
+                <button class="btn btn-outline-light me-2" onclick="abrirCalendarioTelaCheia()" title="Abrir Calendário">
+                    <i class="bi bi-calendar3"></i>
+                </button>
+
+                <!-- Install PWA Button -->
+                <button class="btn btn-outline-light" id="installPwaBtn" style="display:none;">
+                    <i class="bi bi-download"></i> <span class="btn-label">Instalar App</span>
+                </button>
+                
+                <!-- diagnostic button removed -->
+            </div>
         </div>
     </nav>
 
@@ -369,10 +396,14 @@
 
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
     <!-- Scripts da aplicação -->
     <script src="src/js/firebase-config.js"></script>
+    <script src="src/js/route-protection.js"></script>
+    <script src="src/js/auth.js"></script>
+    <script src="src/js/main-auth.js"></script>
     <script src="src/js/fileConverter.js"></script>
     <script src="src/js/tasks.js"></script>
     <script src="src/js/calendar.js"></script>

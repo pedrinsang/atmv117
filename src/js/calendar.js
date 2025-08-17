@@ -5,18 +5,64 @@ function initializeCalendar() {
     const calendarModal = document.getElementById('calendarModal');
     if (calendarModal) {
         calendarModal.addEventListener('shown.bs.modal', function() {
-            loadCalendar();
+            // Só carregar o calendário se o usuário estiver autenticado
+            if (firebase.auth().currentUser) {
+                loadCalendar();
+            } else {
+                console.log('Aguardando autenticação para carregar calendário...');
+                firebase.auth().onAuthStateChanged((user) => {
+                    if (user) {
+                        loadCalendar();
+                    }
+                });
+            }
         });
     }
 }
 
 function loadCalendar() {
+    console.log('📅 loadCalendar() chamado');
+
     if (!window.db) {
+        console.log('⏳ Firestore não disponível, aguardando...');
         setTimeout(loadCalendar, 1000);
         return;
     }
-    
-    window.db.collection('tasks').onSnapshot((snapshot) => {
+
+    // Verificar se o usuário está autenticado antes de acessar o Firestore
+    const currentUser = firebase.auth().currentUser;
+    console.log('👤 Estado de autenticação atual:', currentUser ? `Logado: ${currentUser.email}` : 'Não logado');
+
+    if (!currentUser) {
+        console.log('⏳ Usuário não autenticado, aguardando autenticação...');
+        const unsubscribe = firebase.auth().onAuthStateChanged((user) => {
+            if (user) {
+                console.log('✅ Usuário autenticado, carregando dados do calendário...');
+                unsubscribe(); // Remove o listener
+                loadCalendarData();
+            }
+        });
+        return;
+    }
+
+    loadCalendarData();
+}
+
+function loadCalendarData() {
+    console.log('Iniciando carregamento de dados do calendário...');
+
+    // Verificar novamente se o usuário está autenticado
+    const user = firebase.auth().currentUser;
+    if (!user) {
+        console.error('❌ Usuário não autenticado ao tentar carregar calendário');
+        return;
+    }
+
+    console.log('✅ Usuário autenticado, iniciando listener do calendário...');
+
+    const unsubscribe = window.db.collection('tasks').onSnapshot((snapshot) => {
+        console.log(`Snapshot recebido: ${snapshot.size} documentos`);
+
         calendarTasks = {};
         snapshot.forEach((doc) => {
             const task = doc.data();
@@ -25,28 +71,56 @@ function loadCalendar() {
             }
             calendarTasks[task.date].push({ id: doc.id, ...task });
         });
+
+        console.log('🗓️ Tarefas processadas:', Object.keys(calendarTasks).length, 'dias com tarefas');
         renderCalendar();
+    }, (error) => {
+        console.error('❌ Erro ao carregar tarefas do calendário:', error);
+
+        if (error.code === 'permission-denied') {
+            console.error('🚫 Permissão negada - possíveis causas:');
+            console.error('1. Usuário não está autenticado');
+            console.error('2. Regras do Firestore não foram aplicadas');
+            console.error('3. Token de autenticação expirado');
+
+            // diagnóstico automático removido
+        }
+
+        // Mostrar erro na interface
+        const calendar = document.getElementById('calendar');
+        if (calendar) {
+            calendar.innerHTML = `
+                <div class="alert alert-danger">
+                    <h6>❌ Erro ao carregar calendário</h6>
+                    <p><strong>Erro:</strong> ${error.code} - ${error.message}</p>
+                    <!-- diagnóstico removido -->
+                </div>
+            `;
+        }
     });
+
+    // Salvar referência para cleanup se necessário
+    window.calendarUnsubscribe = unsubscribe;
 }
 
 function renderCalendar() {
     const calendar = document.getElementById('calendar');
     if (!calendar) return;
-    
+
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
-    
+
     const firstDay = new Date(year, month, 1);
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - firstDay.getDay());
-    
+
     const monthNames = [
         'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
         'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
     ];
-    
+
     const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-    
+
     calendar.innerHTML = `
         <div class="d-flex justify-content-between align-items-center mb-3">
             <button class="btn btn-outline-orange" onclick="previousMonth()">
@@ -62,10 +136,10 @@ function renderCalendar() {
         </div>
         <div class="calendar-grid" id="calendarGrid"></div>
     `;
-    
+
     const calendarGrid = document.getElementById('calendarGrid');
     const currentDateObj = new Date();
-    
+
     for (let i = 0; i < 42; i++) {
         const date = new Date(startDate);
         date.setDate(startDate.getDate() + i);
@@ -110,7 +184,7 @@ function renderCalendar() {
     }
 }
 
-// Adicione essas funções utilitárias se não existirem:
+// Utilitários
 function getTypeColor(type) {
     switch (type) {
         case 'prova': return 'danger';
@@ -119,6 +193,7 @@ function getTypeColor(type) {
         default: return 'secondary';
     }
 }
+
 function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
@@ -132,20 +207,20 @@ function selectDate(date, element) {
             el.classList.remove('selected');
         }
     });
-    
+
     element.classList.add('selected');
-    
+
     const dateString = date.toISOString().split('T')[0];
     const taskDateInput = document.getElementById('taskDate');
     if (taskDateInput) {
         taskDateInput.value = dateString;
     }
-    
+
     const calendarModal = bootstrap.Modal.getInstance(document.getElementById('calendarModal'));
     if (calendarModal) {
         calendarModal.hide();
     }
-    
+
     setTimeout(() => {
         const taskModal = new bootstrap.Modal(document.getElementById('taskModal'));
         taskModal.show();
@@ -167,6 +242,50 @@ function abrirCalendarioTelaCheia() {
     calendarModal.show();
 }
 
+// Abre o modal de edição de tarefa por cima do calendário (quando o calendário está em modal fullscreen)
+function openTaskEditorOverCalendar(taskId) {
+    try {
+        const dayModalEl = document.getElementById('dayTasksModal');
+        const dayModalInstance = dayModalEl ? bootstrap.Modal.getInstance(dayModalEl) : null;
+        if (dayModalInstance) dayModalInstance.hide();
+
+        setTimeout(() => {
+            const taskModalEl = document.getElementById('taskModal');
+            const calendarModalEl = document.getElementById('calendarModal');
+            const calendarOpen = calendarModalEl && calendarModalEl.classList.contains('show');
+
+            if (calendarOpen && taskModalEl) {
+                // Garantir que o taskModal fique com z-index acima do calendário
+                // Valores elevados para evitar conflitos com outros backdrops
+                taskModalEl.style.zIndex = 20050;
+
+                const onShown = function() {
+                    // Ajustar o backdrop recém-criado para ficar logo abaixo do modal
+                    const backdrops = document.querySelectorAll('.modal-backdrop');
+                    const last = backdrops[backdrops.length - 1];
+                    if (last) last.style.zIndex = 20040;
+                    taskModalEl.removeEventListener('shown.bs.modal', onShown);
+                };
+
+                taskModalEl.addEventListener('shown.bs.modal', onShown);
+            }
+
+            // Reaproveita a função existente de edição
+            if (typeof editTask === 'function') {
+                editTask(taskId);
+            } else {
+                // fallback
+                const m = bootstrap.Modal.getInstance(document.getElementById('dayTasksModal'));
+                if (m) m.hide();
+                setTimeout(() => { if (typeof editTask === 'function') editTask(taskId); }, 300);
+            }
+        }, 300);
+    } catch (e) {
+        console.error('Erro ao abrir editor sobre o calendário', e);
+        if (typeof editTask === 'function') editTask(taskId);
+    }
+}
+
 function abrirModalTarefasDoDia(dateString, tasksOfDay) {
     const modalBody = document.getElementById('dayTasksModalBody');
     if (!modalBody) return;
@@ -176,9 +295,19 @@ function abrirModalTarefasDoDia(dateString, tasksOfDay) {
     } else {
         modalBody.innerHTML = tasksOfDay.map(task => `
             <div class="mb-2 p-2 rounded border-start border-4 border-${getTypeColor(task.type)} bg-light">
-            <div class="fw-bold text-dark">${escapeHtml(task.title)}</div>
-            <div class="small text-muted"><strong>${task.type.charAt(0).toUpperCase() + task.type.slice(1)}</strong></div>
-            <div class="small text-muted">${escapeHtml(task.description || '')}</div>
+                <div class="fw-bold text-dark">${escapeHtml(task.title)}</div>
+                <div class="small text-muted"><strong>${task.type.charAt(0).toUpperCase() + task.type.slice(1)}</strong></div>
+                <div class="small text-muted">${escapeHtml(task.description || '')}</div>
+                <div class="mt-2 d-flex justify-content-end">
+                    <div onclick="event.stopPropagation();">
+                                <button class="btn btn-sm btn-outline-primary me-1" onclick="openTaskEditorOverCalendar('${task.id}')">
+                                    <i class="bi bi-pencil"></i> Editar
+                                </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="(function(){ const m = bootstrap.Modal.getInstance(document.getElementById('dayTasksModal')); if(m) m.hide(); setTimeout(function(){ deleteTask('${task.id}'); }, 300); })()">
+                            <i class="bi bi-trash"></i> Excluir
+                        </button>
+                    </div>
+                </div>
             </div>
         `).join('');
     }
@@ -193,8 +322,8 @@ document.addEventListener('DOMContentLoaded', function() {
         'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
     ];
     const today = new Date();
-    document.getElementById('currentMonthName').textContent =
-        monthNames[today.getMonth()] + ' ' + today.getFullYear();
+    const el = document.getElementById('currentMonthName');
+    if (el) el.textContent = monthNames[today.getMonth()] + ' ' + today.getFullYear();
 });
 
 window.initializeCalendar = initializeCalendar;

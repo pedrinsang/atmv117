@@ -393,6 +393,162 @@ footer {
     }
 }
 
+/* Extra small devices (phones, portrait) */
+@media (max-width: 480px) {
+    /* Reduce heavy background on phones */
+    body {
+        background-image: none;
+        background-attachment: scroll;
+    }
+
+    /* Make the main content use full width and less padding */
+    .container {
+        padding-left: 8px !important;
+        padding-right: 8px !important;
+        max-width: 100% !important;
+    }
+
+    /* FAB smaller and easier to tap */
+    .fab {
+        width: 48px;
+        height: 48px;
+        font-size: 18px;
+        bottom: 12px;
+        right: 12px;
+    }
+
+    /* Calendar: allow horizontal scroll and larger row height */
+    .calendar-container {
+        padding: 8px 6px;
+    }
+
+    .calendar-header,
+    .calendar-grid {
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+    }
+
+    /* Make the calendar grid scroll horizontally with fixed column width for days */
+    .calendar-grid {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(92px, 1fr);
+        grid-template-rows: repeat(6, minmax(80px, auto));
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        gap: 1px;
+        height: auto;
+    }
+
+    .calendar-header {
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(92px, 1fr);
+        overflow-x: auto;
+    }
+
+    .calendar-day {
+        min-height: 72px;
+        padding: 8px;
+        font-size: 13px;
+    }
+
+    /* Task cards take full width and stack */
+    .task-card {
+        margin: 0 8px 12px 8px;
+    }
+
+    /* Tabs better spacing */
+    .nav-tabs .nav-link {
+        padding: 8px 10px;
+        font-size: 0.9rem;
+    }
+
+    /* Make modals fit nicely */
+    .modal-fullscreen .modal-body {
+        height: calc(100vh - 56px);
+        padding: 8px;
+    }
+
+    /* Reduce card radiuses and shadows for performance */
+    .task-card, .card {
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+
+    /* Reduce font sizes globally for very small screens */
+    body, .card, .btn, .form-control {
+        font-size: 14px;
+    }
+    
+        /* Hide user name text on small screens when admin, keep icons visible */
+        body.admin-user #userDisplayName .user-name-text { display: none !important; }
+        body.admin-user #userDisplayName .admin-icon { margin-right: 4px; }
+}
+
+/* Compact header for small devices */
+@media (max-width: 480px) {
+    .navbar .container {
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+
+    .navbar-brand {
+        font-size: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    /* Show a compact brand text on very small devices (small font, truncated) */
+    .brand-text {
+        display: inline-block;
+        font-size: 0.85rem;
+        max-width: 110px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        vertical-align: middle;
+        margin-left: 4px;
+    }
+
+    /* Hide icon on very small screens and emphasize text */
+    .brand-icon { display: none !important; }
+    .navbar-brand { align-items: center; }
+    .brand-text { font-size: 0.95rem; max-width: 140px; }
+
+    /* Brand text color on all devices */
+    .brand-text { color: #ffffff !important; font-weight: 500; }
+
+    /* Ensure brand-text is never clipped/transparent by admin gradient styles */
+    body.admin-user .navbar-brand .brand-text,
+    .navbar-brand .brand-text {
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important; /* override injected -webkit-text-fill-color: transparent */
+        background: none !important;
+        -webkit-background-clip: unset !important;
+        background-clip: unset !important;
+    }
+
+    /* Reduce dropdown and button paddings */
+    .navbar .btn {
+        padding: 6px 8px;
+        font-size: 0.9rem;
+    }
+
+    /* Hide verbose labels on header buttons (install etc) */
+    .btn-label {
+        display: none;
+    }
+
+    /* Keep user display as small badge */
+    #userDisplayName { font-size: 0.85rem; }
+
+    /* Slightly reduce FAB offset so header doesn't overlap on very small screens */
+    .fab { bottom: 72px; }
+}
+
 /* Loading Animation */
 .loading {
     display: inline-block;
