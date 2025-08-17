@@ -248,26 +248,88 @@ function loadTasks() {
     const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
     if (window.db) {
-        window.db.collection('tasks')
-            .where('date', '>=', monthStart.toISOString().split('T')[0])
-            .where('date', '<=', monthEnd.toISOString().split('T')[0])
-            .orderBy('date')
-            .onSnapshot((snapshot) => {
-                tasks = [];
-                snapshot.forEach((doc) => {
-                    const task = { id: doc.id, ...doc.data() };
-                    if (task.date < todayStr) {
-                        window.db.collection('tasks').doc(task.id).delete();
-                    } else {
-                        tasks.push(task);
-                    }
-                });
-                renderTasks();
-                renderWeekTasks();
+        // Verificar se o usuário está autenticado antes de acessar o Firestore
+        if (!firebase.auth().currentUser) {
+            console.log('Usuário não autenticado, aguardando autenticação...');
+            firebase.auth().onAuthStateChanged((user) => {
+                if (user) {
+                    loadTasksData(monthStart, monthEnd, todayStr);
+                }
             });
+            return;
+        }
+        
+        loadTasksData(monthStart, monthEnd, todayStr);
     } else {
         setTimeout(loadTasks, 1000);
     }
+}
+
+function loadTasksData(monthStart, monthEnd, todayStr) {
+    console.log('📋 Carregando dados das tarefas...');
+    
+    // Verificar novamente se o usuário está autenticado
+    const user = firebase.auth().currentUser;
+    if (!user) {
+        console.error('❌ Usuário não autenticado ao tentar carregar tarefas');
+        return;
+    }
+    
+    console.log('✅ Usuário autenticado, iniciando listener das tarefas...');
+    
+    window.db.collection('tasks')
+        .where('date', '>=', monthStart.toISOString().split('T')[0])
+        .where('date', '<=', monthEnd.toISOString().split('T')[0])
+        .orderBy('date')
+        .onSnapshot((snapshot) => {
+            console.log('📊 Snapshot das tarefas recebido - documentos:', snapshot.size);
+            tasks = [];
+            snapshot.forEach((doc) => {
+                const task = { id: doc.id, ...doc.data() };
+                if (task.date < todayStr) {
+                    window.db.collection('tasks').doc(task.id).delete();
+                } else {
+                    tasks.push(task);
+                }
+            });
+            renderTasks();
+            renderWeekTasks();
+            console.log('✅ Tarefas renderizadas com sucesso');
+        }, (error) => {
+            console.error('❌ Erro ao carregar tarefas:', error);
+            console.error('   - Código:', error.code);
+            console.error('   - Mensagem:', error.message);
+            
+            if (error.code === 'permission-denied') {
+                console.error('🚫 PERMISSÃO NEGADA nas tarefas - Possíveis causas:');
+                console.error('   1. Regras do Firestore muito restritivas');
+                console.error('   2. Usuário não tem documento na coleção users');
+                console.error('   3. Token de autenticação expirado');
+                
+                // diagnóstico automático removido
+                
+                // Mostrar erro na interface
+                const tasksList = document.getElementById('tasksList');
+                if (tasksList) {
+                    tasksList.innerHTML = `
+                        <div class="col-12">
+                            <div class="alert alert-danger">
+                                <h5><i class="bi bi-shield-x"></i> Erro de Permissão</h5>
+                                <p>Não foi possível carregar as tarefas. Possíveis soluções:</p>
+                                <ul>
+                                    <li>Faça logout e login novamente</li>
+                                    <li>Verifique as regras do Firestore</li>
+                                    <li>Entre em contato com o administrador</li>
+                                </ul>
+                                <button class="btn btn-outline-danger" onclick="window.location.reload()">
+                                    <i class="bi bi-arrow-clockwise"></i> Tentar Novamente
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+        });
 }
 
 // ===== FUNÇÕES DE RENDERIZAÇÃO =====
@@ -812,12 +874,18 @@ function editTask(taskId) {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
 
-    document.getElementById('taskTitle').value = task.title;
-    document.getElementById('taskType').value = task.type;
-    document.getElementById('taskDate').value = task.date;
-    document.getElementById('taskDescription').value = task.description || '';
-
+    // Limpar o formulário antes de preencher com os dados da tarefa
     clearTaskForm();
+
+    const titleEl = document.getElementById('taskTitle');
+    const typeEl = document.getElementById('taskType');
+    const dateEl = document.getElementById('taskDate');
+    const descEl = document.getElementById('taskDescription');
+
+    if (titleEl) titleEl.value = task.title;
+    if (typeEl) typeEl.value = task.type;
+    if (dateEl) dateEl.value = task.date;
+    if (descEl) descEl.value = task.description || '';
 
     if (task.attachments?.googleDriveLinks) {
         const container = document.getElementById('googleDriveContainer');

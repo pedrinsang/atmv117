@@ -1,0 +1,271 @@
+/* 
+ * Estilos adicionais para o sistema de autenticação
+ * Adicione ao final do arquivo styles.css existente
+ */
+
+/* ===== AUTH SYSTEM STYLES ===== */
+
+/* Admin User Indicator */
+.admin-user .navbar-brand {
+    /* Keep brand readable for admins: white text with subtle emphasis */
+    color: #ffffff !important;
+    font-weight: bold;
+    text-shadow: 0 1px 0 rgba(0,0,0,0.2);
+}
+
+/* User Dropdown Styles */
+.dropdown-menu {
+    border-radius: 10px;
+    border: none;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.dropdown-header {
+    color: #ff6b35 !important;
+    font-weight: 600;
+}
+
+.dropdown-item {
+    padding: 10px 20px;
+    transition: all 0.2s ease;
+}
+
+.dropdown-item:hover {
+    background-color: #ff6b35;
+    color: white;
+}
+
+.dropdown-item i {
+    width: 20px;
+    text-align: center;
+}
+
+/* Auth Loading Overlay */
+.auth-loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    backdrop-filter: blur(5px);
+}
+
+.auth-loading-content {
+    text-align: center;
+    padding: 40px;
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    max-width: 300px;
+}
+
+/* Login Page Styles */
+.login-container {
+    animation: fadeInUp 0.6s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.login-container .form-control:focus {
+    border-color: #ff6b35;
+    box-shadow: 0 0 0 0.2rem rgba(255, 107, 53, 0.25);
+}
+
+.login-container .btn-primary {
+    background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+    border: none;
+    padding: 12px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.login-container .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(255, 107, 53, 0.3);
+}
+
+/* Admin Panel Styles */
+.admin-header {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    box-shadow: 0 2px 10px rgba(220, 53, 69, 0.2);
+}
+
+.stats-card {
+    background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+    color: white;
+    border-radius: 15px;
+    transition: transform 0.2s ease;
+}
+
+.stats-card:hover {
+    transform: translateY(-5px);
+}
+
+.user-card {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+}
+
+.user-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+}
+
+.role-badge {
+    font-size: 0.75rem;
+    padding: 5px 10px;
+    border-radius: 20px;
+}
+
+/* Responsive Improvements */
+@media (max-width: 768px) {
+    .login-container {
+        margin: 20px;
+        padding: 30px;
+    }
+    
+    .admin-header h2 {
+        font-size: 1.5rem;
+    }
+    
+    .stats-card {
+        margin-bottom: 15px;
+    }
+    
+    .user-card .btn-group {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .user-card .btn-role-toggle {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+}
+
+/* Mobile specific auth tweaks */
+@media (max-width: 480px) {
+    .login-container {
+        margin: 12px !important;
+        padding: 18px !important;
+        max-width: 100%;
+    }
+
+    .auth-loading-content {
+        max-width: 92%;
+        padding: 20px;
+    }
+
+    .login-container .btn-primary {
+        width: 100%;
+        padding: 12px 14px;
+        font-size: 1rem;
+    }
+
+    .form-control {
+        font-size: 0.95rem;
+        padding: 10px 12px;
+    }
+
+    .role-badge {
+        padding: 6px 8px;
+        font-size: 0.72rem;
+    }
+
+    .user-card {
+        margin-bottom: 12px;
+    }
+}
+
+/* Success and Error States */
+.alert {
+    border-radius: 10px;
+    border: none;
+}
+
+.alert-success {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+}
+
+.alert-danger {
+    background: linear-gradient(135deg, #dc3545, #c82333);
+    color: white;
+}
+
+.alert-warning {
+    background: linear-gradient(135deg, #ffc107, #ff8c00);
+    color: #333;
+}
+
+.alert-info {
+    background: linear-gradient(135deg, #17a2b8, #007bff);
+    color: white;
+}
+
+/* Spinner Customization */
+.spinner-border-primary {
+    color: #ff6b35;
+}
+
+/* Form Validation States */
+.is-valid .form-control {
+    border-color: #28a745;
+}
+
+.is-invalid .form-control {
+    border-color: #dc3545;
+}
+
+/* Additional Utilities */
+.text-orange {
+    color: #ff6b35 !important;
+}
+
+.bg-orange {
+    background-color: #ff6b35 !important;
+}
+
+.border-orange {
+    border-color: #ff6b35 !important;
+}
+
+/* Custom Scrollbar for Admin Panel */
+.user-list-container {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.user-list-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.user-list-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.user-list-container::-webkit-scrollbar-thumb {
+    background: #ff6b35;
+    border-radius: 10px;
+}
+
+.user-list-container::-webkit-scrollbar-thumb:hover {
+    background: #e55a2b;
+}

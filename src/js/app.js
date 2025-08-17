@@ -55,13 +55,29 @@ function initializeApp() {
     
     console.log('Inicializando aplicação...');
     
-    if (typeof loadTasks === 'function') {
-        loadTasks();
-    }
-    
-    if (typeof initializeCalendar === 'function') {
-        initializeCalendar();
-    }
+    // Aguardar autenticação antes de carregar dados
+    firebase.auth().onAuthStateChanged((user) => {
+        if (user) {
+            console.log('Usuário autenticado, carregando dados...');
+            
+            if (typeof loadTasks === 'function') {
+                loadTasks();
+            }
+            
+            if (typeof initializeCalendar === 'function') {
+                initializeCalendar();
+            }
+        } else {
+            console.log('Usuário não autenticado');
+            // Se esta página requer autenticação, redirecionar para login
+            const protectedPages = ['index.html', 'admin.html'];
+            const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+            if (protectedPages.includes(currentPage) || !currentPage.includes('.')) {
+                console.log('Página protegida detectada sem autenticação - redirecionando para login');
+                window.location.href = 'login.html';
+            }
+        }
+    });
     
     const today = new Date().toISOString().split('T')[0];
     const taskDateInput = document.getElementById('taskDate');
