@@ -110,9 +110,18 @@ class AdminSystem {
             
             this.users = [];
             usersSnapshot.forEach(doc => {
+                const data = doc.data() || {};
+                const fallbackName = data.fullName || data.displayName || (data.email ? data.email.split('@')[0] : null);
                 this.users.push({
                     id: doc.id,
-                    ...doc.data()
+                    fullName: data.fullName || fallbackName,
+                    displayName: data.displayName,
+                    email: data.email,
+                    role: data.role || 'user',
+                    disabled: !!data.disabled,
+                    createdAt: data.createdAt,
+                    lastLogin: data.lastLogin,
+                    ...data
                 });
             });
 
@@ -184,9 +193,10 @@ class AdminSystem {
     }
 
     createUserCard(user) {
-        const isCurrentUser = user.id === this.currentUser.uid;
-        const lastLogin = user.lastLogin ? this.formatDate(user.lastLogin) : 'Nunca';
-        const createdAt = user.createdAt ? this.formatDate(user.createdAt) : 'Data não disponível';
+    const isCurrentUser = user.id === this.currentUser.uid;
+    const lastLogin = user.lastLogin ? this.formatDate(user.lastLogin) : 'Nunca';
+    const createdAt = user.createdAt ? this.formatDate(user.createdAt) : 'Data não disponível';
+    const displayName = this.getUserDisplayName(user);
         
         return `
             <div class="card user-card mb-3">
@@ -201,16 +211,17 @@ class AdminSystem {
                                     </div>
                                 </div>
                                 <div>
-                                    <h6 class="mb-1">${user.fullName || 'Nome não disponível'}</h6>
+                                    <h6 class="mb-1">${displayName}</h6>
                                     <p class="text-muted mb-0">${user.email}</p>
                                     ${isCurrentUser ? '<span class="badge bg-info">Você</span>' : ''}
                                 </div>
                             </div>
                         </div>
                         <div class="col-md-2">
-                            <span class="badge ${user.role === 'admin' ? 'bg-danger' : 'bg-secondary'} role-badge">
-                                ${user.role === 'admin' ? 'Admin' : 'Usuário'}
+                            <span class="badge ${user.role === 'admin' ? 'bg-danger' : 'bg-secondary'} role-badge me-1">
+                                ${user.role === 'admin' ? 'Administrador' : 'Usuário Comum'}
                             </span>
+                            ${user.disabled ? `<span class="badge bg-dark role-badge">Bloqueado</span>` : ''}
                         </div>
                         <div class="col-md-2">
                             <small class="text-muted">
@@ -225,6 +236,11 @@ class AdminSystem {
                                             onclick="adminSystem.changeUserRole('${user.id}', '${user.role === 'admin' ? 'user' : 'admin'}')">
                                         <i class="bi bi-shield${user.role === 'admin' ? '-slash' : '-check'}"></i>
                                         ${user.role === 'admin' ? 'Remover Admin' : 'Tornar Admin'}
+                                    </button>
+                                    <button class="btn btn-outline-${user.disabled ? 'secondary' : 'danger'} btn-role-toggle"
+                                            onclick="adminSystem.changeUserDisabled('${user.id}', ${user.disabled ? 'false' : 'true'})">
+                                        <i class="bi ${user.disabled ? 'bi-unlock' : 'bi-lock'}"></i>
+                                        ${user.disabled ? 'Desbloquear' : 'Bloquear'}
                                     </button>
                                 ` : `
                                     <button class="btn btn-outline-secondary" disabled>
@@ -252,7 +268,7 @@ class AdminSystem {
         const action = newRole === 'admin' ? 'promover a administrador' : 'remover privilégios de administrador';
         
         this.showConfirmModal(
-            `Tem certeza que deseja ${action} o usuário "${user.fullName}"?`,
+            `Tem certeza que deseja ${action} o usuário "${this.getUserDisplayName(user)}"?`,
             async () => {
                 try {
                     // Log da operação para auditoria
@@ -310,6 +326,50 @@ class AdminSystem {
         document.getElementById('totalAdmins').textContent = totalAdmins;
         document.getElementById('totalRegularUsers').textContent = totalRegularUsers;
         document.getElementById('onlineUsers').textContent = onlineToday;
+    }
+
+    async changeUserDisabled(userId, disabled) {
+        const user = this.users.find(u => u.id === userId);
+        if (!user) return;
+
+        // Prevent changing own disabled state
+        if (userId === this.currentUser.uid) {
+            this.showAlert('Erro: Você não pode bloquear/desbloquear sua própria conta.', 'danger');
+            return;
+        }
+
+        const actionLabel = disabled ? 'bloquear' : 'desbloquear';
+
+        this.showConfirmModal(
+            `Tem certeza que deseja ${actionLabel} o usuário "${this.getUserDisplayName(user)}"?`,
+            async () => {
+                try {
+                    await this.db.collection('users').doc(userId).update({
+                        disabled: disabled,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        updatedBy: this.currentUser.uid
+                    });
+
+                    // Salvar log de auditoria
+                    const auditLog = {
+                        action: disabled ? 'block_user' : 'unblock_user',
+                        adminId: this.currentUser.uid,
+                        adminEmail: this.currentUser.email,
+                        targetUserId: userId,
+                        targetUserEmail: user.email,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                        details: { disabled: disabled }
+                    };
+                    await this.db.collection('admin_logs').add(auditLog);
+
+                    this.showAlert(`Usuário ${disabled ? 'bloqueado' : 'desbloqueado'} com sucesso.`, 'success');
+                    await this.loadUsers();
+                } catch (error) {
+                    console.error('Erro ao atualizar status de bloqueio do usuário:', error);
+                    this.showAlert('Erro ao atualizar status do usuário. Verifique suas permissões.', 'danger');
+                }
+            }
+        );
     }
 
     showConfirmModal(message, onConfirm) {
@@ -371,6 +431,30 @@ class AdminSystem {
         } catch (error) {
             return 'Data inválida';
         }
+    }
+
+    // Resolver nome exibido do usuário a partir de possíveis campos
+    getUserDisplayName(user) {
+        if (!user) return 'Nome não disponível';
+        const candidate = user.fullName || user.name || user.displayName;
+        // Ignorar valores que na verdade armazenam role por engano
+        if (candidate && this.isLikelyRoleString(candidate)) {
+            // fallback para displayName ou email prefix
+            return user.displayName || (user.email ? user.email.split('@')[0] : 'Nome não disponível');
+        }
+        return candidate || (user.email ? user.email.split('@')[0] : 'Nome não disponível');
+    }
+
+    // Detecta strings que provavelmente são roles salvas no lugar do nome
+    isLikelyRoleString(value) {
+        if (!value) return false;
+        const v = String(value).trim().toLowerCase();
+        const roleCandidates = [
+            'admin', 'administrator', 'administrador',
+            'user', 'usuário', 'usuario', 'usuário comum', 'usuario comum',
+            'adm', 'adm.'
+        ];
+        return roleCandidates.includes(v);
     }
 
     // Método para carregar logs de auditoria

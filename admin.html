@@ -48,6 +48,13 @@
         .btn-role-toggle {
             font-size: 0.8rem;
         }
+        /* Garantir legibilidade do modal de confirmação (texto preto sobre fundo claro) */
+        #confirmModal .modal-content,
+        #confirmModal .modal-header,
+        #confirmModal .modal-body,
+        #confirmModal .modal-footer {
+            color: #000 !important;
+        }
     </style>
 </head>
 <body>
@@ -339,6 +346,7 @@
     <!-- Firebase Config -->
     <script src="src/js/firebase-config.js"></script>
     <script src="src/js/route-protection.js"></script>
+    <script src="src/js/auth.js"></script>
     
     <!-- Admin Script -->
     <script src="src/js/admin.js"></script>
