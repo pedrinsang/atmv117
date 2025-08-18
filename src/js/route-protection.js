@@ -28,11 +28,30 @@ class RouteProtection {
     }
 
     setupAuthStateListener() {
-        this.auth.onAuthStateChanged((user) => {
+        this.auth.onAuthStateChanged(async (user) => {
             if (user) {
-                // Usuário autenticado - pode continuar
-                this.hideLoadingScreen();
-                console.log('✅ Usuário autenticado:', user.email);
+                try {
+                    // Verificar campo disabled no documento do usuário
+                    const db = firebase.firestore();
+                    const userDoc = await db.collection('users').doc(user.uid).get();
+                    const userData = userDoc.exists ? userDoc.data() : {};
+                    if (userData && userData.disabled) {
+                        console.warn('⚠️ Conta desabilitada detectada, efetuando signOut');
+                        await this.auth.signOut();
+                        this.hideLoadingScreen();
+                        alert('Sua conta foi bloqueada. Entre em contato com o administrador.');
+                        this.redirectToLogin();
+                        return;
+                    }
+
+                    // Usuário autenticado e não bloqueado - pode continuar
+                    this.hideLoadingScreen();
+                    console.log('✅ Usuário autenticado:', user.email);
+                } catch (err) {
+                    console.error('Erro ao verificar status do usuário:', err);
+                    this.hideLoadingScreen();
+                    this.redirectToLogin();
+                }
             } else {
                 // Usuário não autenticado - redirecionar
                 console.log('❌ Usuário não autenticado - redirecionando para login');
