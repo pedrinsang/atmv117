@@ -68,6 +68,8 @@ footer {
 
 .bg-orange {
     background-color: var(--orange-primary) !important;
+    position: relative;
+    z-index: 1051; /* Ensure navbar is above modals */
 }
 
 .text-orange {
@@ -245,47 +247,52 @@ footer {
     overflow: hidden;
 }
 
-.calendar-header-day {
-    background-color: var(--orange-primary);
-    color: white;
-    padding: 12px 0;
-    text-align: center;
-    font-weight: bold;
-    letter-spacing: 1px;
-}
-
-.task-dot {
-    position: absolute;
-    bottom: 6px;
-    right: 8px;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background-color: var(--orange-primary);
-    box-shadow: 0 0 6px 2px rgba(255, 107, 53, 0.25);
-}
-
-.calendar-dots {
+/* individual day cell */
+#calendarioPage .calendar-day {
+    padding: 0.5rem;
+    min-height: 72px;
+    box-sizing: border-box;
     display: flex;
-    gap: 4px;
-    margin-top: 2px;
-}
-.task-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    display: inline-block;
-}
-.bg-danger { background: #dc3545 !important; }
-.bg-warning { background: #ffc107 !important; }
-.bg-success { background: #20c997 !important; }
-
-.form-label {
-    color: black;
-
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 0.35rem;
+    border-right: 1px solid rgba(255, 107, 53, 0.06);
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+    background: transparent;
 }
 
-/* Modal body ocupa toda a altura disponível */
+#calendarioPage .calendar-day:nth-child(7n) {
+    border-right: none;
+}
+
+/* dim days that are from previous/next month */
+#calendarioPage .calendar-day.other-month {
+    opacity: 0.48;
+    color: rgba(255,255,255,0.7);
+}
+
+.day-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    line-height: 1;
+    text-align: center;
+    border-radius: 6px;
+    font-weight: 700;
+    color: var(--text);
+    background: transparent;
+    font-size: 0.95rem;
+}
+
+.task-indicator {
+    margin-top: auto;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    justify-content: flex-start;
+}
 .modal-fullscreen .modal-body {
     height: calc(100vh - 56px); /* 56px é a altura do header do modal */
     min-height: 0;
@@ -630,4 +637,687 @@ footer {
 
 @keyframes spin {
     to { transform: rotate(360deg); }
+}
+
+/* ===== SIDEBAR STYLES ===== */
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: -280px;
+    width: 280px;
+    height: 100vh;
+    background: rgba(26, 26, 26, 0.95);
+    backdrop-filter: blur(10px);
+    transition: left 0.3s ease;
+    z-index: 1055; /* Higher than Bootstrap modals */
+    border-right: 1px solid var(--orange-primary);
+}
+
+.sidebar.open {
+    left: 0;
+}
+
+.sidebar-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid rgba(255, 107, 53, 0.2);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.sidebar-header h5 {
+    color: var(--orange-primary);
+    margin: 0;
+    font-weight: bold;
+}
+
+.sidebar-close {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.sidebar-close:hover {
+    color: var(--orange-primary);
+}
+
+.sidebar-menu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.menu-item {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.menu-item a {
+    display: flex;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    color: var(--text-light);
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.menu-item a:hover {
+    background: rgba(255, 107, 53, 0.1);
+    color: var(--orange-primary);
+}
+
+.menu-item.active a {
+    background: var(--orange-primary);
+    color: white;
+}
+
+.menu-item a i {
+    margin-right: 1rem;
+    font-size: 1.1rem;
+    width: 20px;
+}
+
+.sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1054; /* Just below sidebar but above modals */
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.sidebar-overlay.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Page Content */
+.page-content {
+    display: none;
+}
+
+.page-content.active {
+    display: block;
+}
+
+/* Calendar Page Styles */
+.calendar-page-container {
+    background: rgba(26, 26, 26, 0.9);
+    border-radius: 12px;
+    padding: 1.5rem;
+    border: 1px solid rgba(255, 107, 53, 0.2);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.calendar-container-page {
+    min-height: 70vh;
+    background: transparent;
+}
+
+/* Fix layout break: ensure page calendar stays inside the page container
+   (avoid using 100vw which pushes the calendar out of the Bootstrap container) */
+#calendarioPage .calendar-page-container {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 1rem; /* keep spacing inside the page */
+}
+
+#calendarioPage .calendar-container-page,
+#calendarioPage .calendar {
+    width: 100%;
+    max-width: 1100px; /* reasonable max width for calendar */
+    box-sizing: border-box;
+    margin: 0 auto;
+    padding: 0;
+}
+
+#calendarioPage .calendar-grid {
+    width: 100%;
+    max-width: 100%;
+}
+
+/* Calendar page specific styles */
+#calendarioPage .calendar {
+    background: transparent;
+    border: none;
+    width: 100%;
+    max-width: 100%;
+}
+
+#calendarioPage .calendar-header {
+    background: rgba(255, 107, 53, 0.1);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    border: 1px solid rgba(255, 107, 53, 0.3);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* calendar container: header row above and days grid below */
+#calendarioPage .calendar-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    background: rgba(26, 26, 26, 0.85);
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 107, 53, 0.22);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    padding: 0.5rem;
+}
+
+#calendarioPage .calendar-days-header {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0;
+    margin-bottom: 0.5rem;
+}
+
+#calendarioPage .calendar-day-header {
+    padding: 0.6rem 0.5rem;
+    text-align: center;
+    font-weight: 700;
+    color: var(--orange-primary);
+    font-size: 0.9rem;
+    background: rgba(48, 21, 16, 0.6);
+    border-right: 1px solid rgba(255, 107, 53, 0.06);
+}
+
+#calendarioPage .calendar-day-header:last-child {
+    border-right: none;
+}
+
+#calendarioPage .calendar-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0;
+}
+
+#calendarioPage .calendar-day {
+    background: rgba(255, 255, 255, 0.03);
+    min-height: 110px;
+    padding: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* day cells */
+#calendarioPage .calendar-day {
+    background: rgba(255,255,255,0.02);
+    min-height: 92px;
+    padding: 0.6rem;
+    box-sizing: border-box;
+    transition: background 0.15s, transform 0.15s;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    border-right: 1px solid rgba(255,255,255,0.04);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+/* ensure grid columns line up: every 7th item is right-most */
+#calendarioPage .calendar-day:nth-child(7n) {
+    border-right: none;
+}
+
+#calendarioPage .calendar-day:hover:not(.other-month) {
+    background: rgba(255,107,53,0.12);
+    transform: translateY(-1px);
+}
+
+/* other-month cells are dimmed but still present */
+#calendarioPage .calendar-day.other-month {
+    background: rgba(0,0,0,0.03);
+    color: rgba(255,255,255,0.45);
+}
+
+#calendarioPage .calendar-day.other-month .day-number {
+    color: rgba(255,255,255,0.45);
+    font-weight: 600;
+}
+
+#calendarioPage .calendar-day.other-month:hover {
+    background: rgba(0,0,0,0.04);
+    transform: none;
+}
+/* day number styling */
+#calendarioPage .day-number {
+    font-weight: bold;
+    color: var(--text-light);
+    font-size: 1.3rem;
+}
+
+#calendarioPage .task-indicator {
+    background: var(--orange-primary);
+    color: white;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    font-weight: bold;
+    align-self: flex-end;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+/* when a day has tasks, show a subtle orange outline and less opaque background */
+#calendarioPage .calendar-day.has-task {
+    box-shadow: 0 0 0 2px rgba(255,107,53,0.08) inset, 0 0 0 1px rgba(255,107,53,0.06);
+    background: rgba(255,107,53,0.04);
+}
+
+/* container for small colored dots in the corner */
+.task-dots {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    pointer-events: none;
+}
+
+.task-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+}
+
+/* type colors */
+.task-dot.trabalho { background: #20c997; } /* green */
+.task-dot.prova { background: #dc3545; } /* red */
+.task-dot.atividade { background: #ffc107; } /* yellow */
+.task-dot.other { background: #6c757d; }
+
+/* legend for calendar types */
+.calendar-legend {
+    color: var(--text-light);
+}
+.calendar-legend .legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
+}
+.calendar-legend .legend-dot.trabalho { background: #20c997; }
+.calendar-legend .legend-dot.prova { background: #dc3545; }
+.calendar-legend .legend-dot.atividade { background: #ffc107; }
+
+/* Responsive adjustments for calendar page */
+@media (max-width: 768px) {
+    #calendarioPage .calendar-day {
+        min-height: 80px;
+        padding: 0.5rem;
+    }
+    
+    #calendarioPage .calendar-day-header {
+        padding: 0.75rem 0.25rem;
+        font-size: 0.8rem;
+    }
+    
+    #calendarioPage .day-number {
+        font-size: 1rem;
+    }
+    
+    #calendarioPage .task-indicator {
+        width: 24px;
+        height: 24px;
+        font-size: 0.75rem;
+    }
+    
+    .calendar-page-container {
+        padding: 1rem;
+    }
+    
+    #calendarioPage .calendar-header {
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    #calendarioPage .calendar-day {
+        min-height: 60px;
+        padding: 0.25rem;
+    }
+    
+    #calendarioPage .calendar-day-header {
+        padding: 0.5rem 0.1rem;
+        font-size: 0.7rem;
+    }
+    
+    #calendarioPage .day-number {
+        font-size: 0.9rem;
+    }
+    
+    #calendarioPage .task-indicator {
+        width: 20px;
+        height: 20px;
+        font-size: 0.7rem;
+    }
+    
+    #calendarioPage .calendar-header {
+        padding: 0.75rem;
+        margin-bottom: 1rem;
+    }
+    
+    #calendarioPage .calendar-header h4 {
+        font-size: 1.1rem;
+    }
+}
+
+/* Menu toggle button should always be accessible */
+#menuToggle {
+    position: relative;
+    z-index: 1052; /* Above modals */
+}
+
+/* Dados da Turma styles */
+/* Dados da Turma styles */
+#classLinksContainer .btn { text-align: left; }
+#classLinksArea { min-height: 60px; }
+#classLinksContainer .btn { background: #fff; color: #111; }
+#classLinksContainer .btn .small { color: rgba(0,0,0,0.6); }
+#classLinksAdminControls { margin-top: 8px; }
+
+/* btn-orange: pill-style primary used across the app */
+.btn-orange {
+    background: linear-gradient(180deg,#ff8f3b 0%, #ff6d00 100%);
+    color: #fff !important;
+    border: none;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.14);
+    border-radius: 999px;
+    padding: 0.42rem 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    transition: transform 140ms cubic-bezier(.2,.9,.3,1), box-shadow 140ms ease;
+}
+.btn-orange:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(0,0,0,0.18); }
+.btn-orange:active { transform: translateY(-1px); }
+.btn-orange:focus { outline: 3px solid rgba(255,140,40,0.15); outline-offset: 2px; }
+.btn-orange .btn-icon { font-size: 1rem; opacity: 0.98; display:inline-flex; align-items:center; justify-content:center; }
+
+/* Specific polished style for the add-link button on Dados da Turma */
+#btnAddClassLink {
+    border-radius: 999px;
+    padding: 0.45rem 1rem;
+    font-weight: 700;
+    font-size: 0.95rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    position: relative;
+}
+
+/* left circular plus icon using ::before so HTML doesn't need changes */
+#btnAddClassLink::before {
+    content: '+';
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.18);
+    color: #fff;
+    font-weight: 800;
+    margin-left: -6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12) inset;
+}
+
+/* make sure small variant matches pill style */
+.btn-orange.btn-sm { padding: 0.28rem 0.6rem; border-radius: 999px; font-size: 0.86rem; }
+
+/* Complaints seen state */
+.complaint-seen { background-color: #e9f7ee; }
+.complaint-seen .small.text-muted { color: #2f6627 !important; }
+/* Smooth transition when marking as read/unread */
+.border.rounded.p-2 { transition: background-color 250ms ease, transform 120ms ease; }
+
+/* complaint area */
+#complaintArea textarea.form-control { resize: vertical; min-height: 84px; }
+#complaintArea .btn { min-width: 110px; }
+/* Link modal (user) */
+#classLinkModal .modal-content { color: #111; }
+#classLinkModal .modal-header,
+#classLinkModal .modal-body,
+#classLinkModal .modal-footer {
+    background: #fff !important;
+    color: #111 !important;
+}
+#classLinkModal .modal-content label,
+#classLinkModal .modal-content .form-label,
+#classLinkModal .modal-content input,
+#classLinkModal .modal-content textarea,
+#classLinkModal .modal-content .form-control {
+    color: #111 !important;
+}
+#classLinkModal .modal-content ::placeholder { color: rgba(0,0,0,0.45) !important; }
+#classLinkModal .btn-close { filter: invert(0); }
+
+/* Admin fallback modal */
+#adminClassLinkModal .modal-content {
+    color: #111;
+}
+#adminClassLinkModal .modal-header,
+#adminClassLinkModal .modal-body,
+#adminClassLinkModal .modal-footer {
+    background: #fff !important;
+    color: #111 !important;
+}
+#adminClassLinkModal .modal-content label,
+#adminClassLinkModal .modal-content .form-label,
+#adminClassLinkModal .modal-content input,
+#adminClassLinkModal .modal-content textarea,
+#adminClassLinkModal .modal-content .form-control {
+    color: #111 !important;
+}
+#adminClassLinkModal .modal-content ::placeholder { color: rgba(0,0,0,0.45) !important; }
+#adminClassLinkModal .btn-close { filter: invert(0); }
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .sidebar {
+        width: 100%;
+        left: -100%;
+    }
+    
+    .sidebar.open {
+        left: 0;
+    }
+    
+    /* Hide text in menu button on mobile */
+    #menuToggle .btn-label {
+        display: none;
+    }
+    
+    /* Adjust navbar brand on mobile */
+    .navbar-brand .brand-text {
+        font-size: 1.1rem;
+    }
+    
+    /* Make menu button more prominent on mobile */
+    #menuToggle {
+        margin-right: 0.5rem !important;
+    }
+}
+
+/* Day tasks modal: force white background and black text for readability */
+#dayTasksModal .modal-content {
+    background: #ffffff !important;
+    color: #111 !important;
+}
+
+#dayTasksModal .modal-header,
+#dayTasksModal .modal-body,
+#dayTasksModal .modal-footer {
+    background: #ffffff !important;
+    color: #111 !important;
+}
+
+#dayTasksModal .card {
+    background: #ffffff !important;
+    color: #111 !important;
+    border: 1px solid rgba(0,0,0,0.08);
+}
+
+#dayTasksModal .card .card-body {
+    background: transparent !important;
+    color: #111 !important;
+}
+
+/* Ensure badges inside modal keep readable colors */
+#dayTasksModal .badge {
+    color: #fff !important;
+}
+
+/* Buttons in modal: clearer outlines */
+#dayTasksModal .btn-outline-primary {
+    border-color: #0d6efd !important;
+    color: #0d6efd !important;
+}
+#dayTasksModal .btn-outline-danger {
+    border-color: #dc3545 !important;
+    color: #dc3545 !important;
+}
+
+/* Elegant Class Link Cards - Clean Design */
+.class-link-card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 1.8rem 1.5rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    border: 1px solid #f1f1f1;
+    color: #2d3748;
+    position: relative;
+    transition: all 0.25s ease;
+    cursor: pointer;
+    min-height: 140px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.class-link-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, #ff6b35, #ff8442);
+}
+
+.class-link-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 12px 40px rgba(255, 107, 53, 0.12);
+    border-color: rgba(255, 107, 53, 0.15);
+}
+
+.class-link-card:active {
+    transform: translateY(-2px);
+}
+
+/* Content styling */
+.class-link-content {
+    text-align: center;
+    z-index: 1;
+}
+
+.class-link-content .link-title {
+    font-size: 1.25rem;
+    color: #1a202c;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    line-height: 1.4;
+}
+
+.class-link-content .link-url {
+    font-size: 0.9rem;
+    color: #718096;
+    font-weight: 400;
+    opacity: 0.85;
+}
+
+/* Simple click indicator */
+.class-link-card::after {
+    content: '→';
+    position: absolute;
+    bottom: 15px;
+    right: 20px;
+    font-size: 1.3rem;
+    color: #ff6b35;
+    font-weight: bold;
+    opacity: 0.4;
+    transition: all 0.2s ease;
+}
+
+.class-link-card:hover::after {
+    opacity: 0.8;
+    transform: translateX(3px);
+}
+
+/* Admin actions - clean and minimal */
+.class-link-actions {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    display: flex;
+    gap: 0.5rem;
+    z-index: 2;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.class-link-card:hover .class-link-actions {
+    opacity: 1;
+}
+
+.class-link-actions .btn {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+    border-radius: 6px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    color: #4a5568;
+    transition: all 0.2s ease;
+}
+
+.class-link-actions .btn:hover {
+    background: #f7fafc;
+    border-color: #cbd5e0;
+}
+
+.class-link-actions .btn-delete {
+    color: #e53e3e;
+}
+
+.class-link-actions .btn-delete:hover {
+    background: #fed7d7;
+    border-color: #feb2b2;
 }

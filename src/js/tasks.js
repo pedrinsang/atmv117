@@ -573,6 +573,7 @@ function addTask() {
 
     const selectedFiles = fileInput && fileInput.files ? Array.from(fileInput.files) : [];
 
+    const currentUser = firebase.auth() && firebase.auth().currentUser ? firebase.auth().currentUser : null;
     const task = {
         title: title.trim(),
         type,
@@ -580,7 +581,8 @@ function addTask() {
         description: description.trim(),
         attachments: Object.keys(attachments).length > 0 ? attachments : null,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        createdBy: 'Usuário'
+        createdBy: currentUser ? (currentUser.displayName || currentUser.email || 'Usuário') : 'Usuário',
+        userId: currentUser ? currentUser.uid : null
     };
 
     const saveTaskWithoutFiles = () => {

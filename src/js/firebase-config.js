@@ -22,10 +22,24 @@ window.addEventListener('unhandledrejection', function(event) {
         // Verificar se realmente não está autenticado
         const user = firebase.auth().currentUser;
         if (!user) {
-            console.error('🚫 Usuário não está autenticado - redirecionando para login');
+            console.error('🚫 Usuário não está autenticado - verificando redirecionamento');
+            
+            // Não redirecionar se há fluxo blocked ativo
+            if (sessionStorage.getItem('blockedUid') || (window.isBlockedModalActive && window.isBlockedModalActive())) {
+                console.log('Blocked flow ativo - firebase-config não redirecionando');
+                return;
+            }
+            
             if (!window.isRedirecting) {
                 window.isRedirecting = true;
-                window.location.href = 'login.html';
+                    console.trace('Redirecting to login from firebase-config unhandledrejection');
+                    // Final guard before redirecting
+                    if (sessionStorage.getItem('blockedUid') || (window.isBlockedModalActive && window.isBlockedModalActive())) {
+                        console.log('Blocked flow detected at final redirect guard - aborting redirect');
+                        window.isRedirecting = false;
+                        return;
+                    }
+                    safeNavigate('login.html');
             }
         } else {
             console.warn('⚠️ Usuário autenticado mas sem permissão - possível problema nas regras do Firestore');

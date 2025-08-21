@@ -14,9 +14,13 @@ class AuthSystem {
         }
 
         // Verificar se já está logado
-        this.auth.onAuthStateChanged((user) => {
+        this.auth.onAuthStateChanged(async (user) => {
             if (user) {
                 this.currentUser = user;
+                
+                // Verificar se a conta está bloqueada
+                await this.checkUserStatus(user);
+                
                 if (this.isLoginPage()) {
                     this.redirectToApp();
                 }
@@ -242,20 +246,181 @@ class AuthSystem {
         }
     }
 
-    async handleForgotPassword() {
-        const email = this.emailInput.value.trim();
-        
-        if (!email) {
-            this.showAlert('Por favor, digite seu email primeiro.', 'warning');
+    async checkUserStatus(user) {
+        // Evitar verificações simultâneas
+        if (window.isCheckingBlockedAccount) {
             return;
         }
-
+        
+        window.isCheckingBlockedAccount = true;
+        
         try {
-            await this.auth.sendPasswordResetEmail(email);
-            this.showAlert('Email de recuperação enviado! Verifique sua caixa de entrada.', 'success');
+            const userDoc = await this.db.collection('users').doc(user.uid).get();
+            
+            if (userDoc.exists) {
+                const userData = userDoc.data();
+                
+                // Se a conta está bloqueada, mostrar tela de bloqueio
+                if (userData.disabled === true) {
+                    this.showBlockedAccountScreen(user, userData);
+                    return;
+                }
+            }
         } catch (error) {
-            console.error('Erro ao enviar email de recuperação:', error);
-            this.showAlert(this.getErrorMessage(error.code), 'danger');
+            console.error('Erro ao verificar status do usuário:', error);
+        } finally {
+            // Reset flag após verificação
+            setTimeout(() => {
+                window.isCheckingBlockedAccount = false;
+            }, 2000);
+        }
+    }
+
+    showBlockedAccountScreen(user, userData) {
+        // Store blocked info and redirect to dedicated blocked page
+        try {
+            sessionStorage.setItem('blockedUid', user.uid);
+            sessionStorage.setItem('blockedEmail', user.email || (userData && userData.email) || '');
+            // Avoid navigation loop: if already on blocked.html, just set the blocked flow flag
+            const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+            if (currentPage === 'blocked.html') {
+                try { sessionStorage.setItem('blockedFlowActive', '1'); } catch (e) {}
+                return;
+            }
+            window.allowRedirect = true;
+            window.location.href = 'blocked.html';
+            window.allowRedirect = false;
+        } catch (e) {
+            console.error('Erro ao redirecionar para blocked.html:', e);
+            this.createBlockedAccountModal(user, userData);
+        }
+    }
+
+    createBlockedAccountModal(user, userData) {
+        // Remove modal existente se houver
+        const existingModal = document.getElementById('blockedAccountModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+
+        // Definir flag global
+        window.isBlockedAccountModalActive = true;
+
+        const modalHTML = `
+            <div class="modal fade show" id="blockedAccountModal" tabindex="-1" 
+                 style="display: block !important; background: rgba(0,0,0,0.9); z-index: 9999;">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content border-danger">
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                Conta Bloqueada
+                            </h5>
+                        </div>
+                        <div class="modal-body text-center py-4">
+                            <div class="mb-4">
+                                <i class="bi bi-lock-fill text-danger" style="font-size: 4rem;"></i>
+                            </div>
+                            <h4 class="text-danger mb-3">Sua conta foi bloqueada</h4>
+                            <p class="mb-4">
+                                Sua conta (<strong>${user.email}</strong>) foi bloqueada por um administrador.
+                                Isso pode ter ocorrido devido a violações das políticas de uso ou outras questões administrativas.
+                            </p>
+                            <div class="alert alert-warning">
+                                <strong>Opções:</strong><br>
+                                Você pode solicitar a exclusão completa da sua conta e dados abaixo.
+                            </div>
+                        </div>
+                        <div class="modal-footer justify-content-center">
+                                <button type="button" class="btn btn-danger me-2" id="deleteAccountBtn">
+                                    <i class="bi bi-trash me-2"></i>Excluir minha conta e dados
+                                </button>
+                                <button type="button" class="btn btn-primary" id="goToLoginBtn">
+                                    <i class="bi bi-arrow-left me-2"></i>Voltar ao Login
+                                </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        
+        // Adicionar event listener para o botão de exclusão
+        const deleteBtn = document.getElementById('deleteAccountBtn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', async () => {
+                const ok = confirm('Tem certeza? Isso removerá permanentemente seus dados e a conta do Authentication quando possível.');
+                if (!ok) return;
+                const user = firebase.auth().currentUser;
+                if (!user) {
+                    alert('Você precisa estar autenticado para excluir sua conta. Entre em contato com o administrador se necessário.');
+                    return;
+                }
+                await window.deleteAccountCompletely(user.uid);
+            });
+        }
+
+        // Adicionar event listener para o botão voltar ao login
+        document.getElementById('goToLoginBtn').addEventListener('click', () => {
+            window.isBlockedAccountModalActive = false;
+            window.allowRedirect = true; // Permitir redirecionamento
+            // Sign out if still signed in
+                if (firebase.auth().currentUser) {
+                firebase.auth().signOut().catch(()=>{}).finally(()=>{
+                    safeNavigate('login.html', true);
+                    window.allowRedirect = false; // Resetar flag
+                });
+            } else {
+                safeNavigate('login.html', true);
+                window.allowRedirect = false;
+            }
+        });
+        
+        // Prevenir fechamento do modal por cliques ou teclas
+        const modal = document.getElementById('blockedAccountModal');
+        modal.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+        });
+        
+        // Desabilitar tecla ESC
+        document.addEventListener('keydown', function preventEscape(e) {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        });
+        
+        // Garantir que o modal permaneça visível
+        setTimeout(() => {
+            const modalCheck = document.getElementById('blockedAccountModal');
+            if (modalCheck) {
+                modalCheck.style.display = 'block';
+                modalCheck.style.zIndex = '9999';
+            }
+        }, 100);
+    }
+
+    async handleForgotPassword() {
+        // Redirect to dedicated reset page and prefill email if available
+        const email = (this.emailInput && this.emailInput.value) ? this.emailInput.value.trim() : '';
+        const target = 'reset-password.html' + (email ? ('?email=' + encodeURIComponent(email)) : '');
+        try {
+            window.location.href = target;
+        } catch (e) {
+            // fallback: attempt to send directly
+            if (!email) {
+                this.showAlert('Por favor, digite seu email primeiro.', 'warning');
+                return;
+            }
+            try {
+                await this.auth.sendPasswordResetEmail(email);
+                this.showAlert('Email de recuperação enviado! Verifique sua caixa de entrada.', 'success');
+            } catch (error) {
+                console.error('Erro ao enviar email de recuperação:', error);
+                this.showAlert(this.getErrorMessage(error.code), 'danger');
+            }
         }
     }
 
@@ -323,8 +488,14 @@ document.addEventListener('DOMContentLoaded', () => {
 // Função global para logout (será usada em outras páginas)
 window.logout = async function() {
     try {
-        await firebase.auth().signOut();
-        window.location.href = 'login.html';
+        // If blocked flow is active, avoid redirecting to login (let blocked page handle it)
+        if (sessionStorage.getItem('blockedUid')) {
+            console.log('Blocked flow active - logout will not redirect to login');
+            await firebase.auth().signOut();
+            return;
+        }
+    await firebase.auth().signOut();
+    safeNavigate('login.html', true);
     } catch (error) {
         console.error('Erro ao fazer logout:', error);
     }

@@ -130,7 +130,9 @@ class MainAuthManager {
 
     redirectToLogin() {
         // Prevenir redirecionamentos múltiplos
-        if (window.isRedirecting) return;
+    if (window.isRedirecting) return;
+    // Não redirecionar se estivermos no fluxo blocked
+    if (sessionStorage.getItem('blockedUid')) return;
         window.isRedirecting = true;
         
         console.log('🔄 Redirecionando para página de login...');
@@ -138,8 +140,8 @@ class MainAuthManager {
         // Mostrar mensagem de carregamento antes de redirecionar
         this.showAuthLoading();
         
-        // Redirecionar imediatamente se já estivermos tentando
-        window.location.href = 'login.html';
+    // Redirecionar imediatamente se já estivermos tentando
+    safeNavigate('login.html', true);
     }
 
     showAuthLoading() {

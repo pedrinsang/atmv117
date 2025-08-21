@@ -6,6 +6,8 @@ class AdminSystem {
         this.users = [];
         this.filteredUsers = [];
         this.auditLogs = [];
+    this.complaints = [];
+    this.showOnlyUnread = false;
         this.currentUser = null;
         this.init();
     }
@@ -23,7 +25,22 @@ class AdminSystem {
             
             // Carregar dados
             await this.loadUsers();
+            await this.loadAuditLogs(); // Adicionar carregamento dos logs
             
+            // Subscrições e painéis de admin extras
+            this.subscribeClassLinksAdmin();
+            this.subscribeComplaints();
+
+            // Wire admin buttons
+            const addBtn = document.getElementById('adminAddClassLinkBtn');
+            if (addBtn) addBtn.addEventListener('click', ()=>{ if (typeof openEditLinkModal === 'function') openEditLinkModal(null); else this.openAdminEditLink(null); });
+            const refreshCompl = document.getElementById('refreshComplaintsBtn');
+            if (refreshCompl) refreshCompl.addEventListener('click', ()=> this.subscribeComplaints());
+            const refreshLinksBtn = document.getElementById('adminRefreshLinksBtn');
+            if (refreshLinksBtn) refreshLinksBtn.addEventListener('click', ()=> { this.subscribeClassLinksAdmin(); this.showAlert('Links atualizados', 'success'); });
+            const toggleFilterBtn = document.getElementById('toggleComplaintsFilterBtn');
+            if (toggleFilterBtn) toggleFilterBtn.addEventListener('click', ()=>{ this.showOnlyUnread = !this.showOnlyUnread; toggleFilterBtn.textContent = this.showOnlyUnread ? 'Mostrar todas' : 'Apenas não-lidas'; this.renderComplaints(); });
+
             this.showAdminContent();
         } catch (error) {
             console.error('Erro na inicialização:', error);
@@ -36,10 +53,25 @@ class AdminSystem {
             this.auth.onAuthStateChanged(async (user) => {
                 if (user) {
                     this.currentUser = user;
+                    
+                    // Não verificar mais conta bloqueada aqui - deixar para auth.js e app.js
                     resolve(user);
                 } else {
+                    // Verificar se há modal de conta bloqueada ativo antes de redirecionar
+                    if (window.isBlockedModalActive && window.isBlockedModalActive()) {
+                        console.log('Modal de conta bloqueada ativo - admin não redirecionando');
+                        reject('Modal de conta bloqueada ativo');
+                        return;
+                    }
+                    
+                    // Se estamos no fluxo blocked, não redirecionar
+                    if (sessionStorage.getItem('blockedUid')) {
+                        console.log('Blocked flow ativo - admin não redirecionando');
+                        reject('Blocked flow ativo');
+                        return;
+                    }
                     // Redirecionar para login
-                    window.location.href = 'login.html';
+                        safeNavigate('login.html');
                     reject('Usuário não autenticado');
                 }
             });
@@ -85,6 +117,349 @@ class AdminSystem {
             }
             throw error;
         }
+    }
+
+    async checkUserBlocked(user) {
+        try {
+            const userDoc = await this.db.collection('users').doc(user.uid).get();
+            
+            if (userDoc.exists) {
+                const userData = userDoc.data();
+                
+                if (userData.disabled === true) {
+                    this.showBlockedAccountScreen(user, userData);
+                    return true;
+                }
+            }
+            
+            return false;
+        } catch (error) {
+            console.error('Erro ao verificar status do usuário:', error);
+            return false;
+        }
+    }
+
+    showBlockedAccountScreen(user, userData) {
+    // Do not force logout here; show modal and allow actions
+    this.createBlockedAccountModal(user, userData);
+    }
+
+    createBlockedAccountModal(user, userData) {
+        const modalHTML = `
+            <div class="modal fade show" id="blockedAccountModal" tabindex="-1" style="display: block; background: rgba(0,0,0,0.8);">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content border-danger">
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                Conta Bloqueada
+                            </h5>
+                        </div>
+                        <div class="modal-body text-center py-4">
+                            <div class="mb-4">
+                                <i class="bi bi-lock-fill text-danger" style="font-size: 4rem;"></i>
+                            </div>
+                            <h4 class="text-danger mb-3">Sua conta foi bloqueada</h4>
+                            <p class="mb-4">
+                                Sua conta (<strong>${user.email}</strong>) foi bloqueada por um administrador.
+                                Isso pode ter ocorrido devido a violações das políticas de uso ou outras questões administrativas.
+                            </p>
+                            <div class="alert alert-warning">
+                                <strong>Opções:</strong><br>
+                                Você pode excluir completamente sua conta e dados abaixo.
+                            </div>
+                        </div>
+                        <div class="modal-footer justify-content-center">
+                            <button type="button" class="btn btn-danger me-2" id="adminDeleteAccountBtn">
+                                <i class="bi bi-trash me-2"></i>Excluir minha conta e dados
+                            </button>
+                            <button type="button" class="btn btn-primary" id="adminBackToLoginBtn">
+                                <i class="bi bi-arrow-left me-2"></i>Voltar ao Login
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+        // Wire delete action
+        const delBtn = document.getElementById('adminDeleteAccountBtn');
+        if (delBtn) {
+            delBtn.addEventListener('click', async () => {
+                if (!confirm('Tem certeza que deseja excluir sua conta e dados permanentemente?')) return;
+                const uid = this.auth.currentUser?.uid;
+                if (!uid) {
+                    alert('Você precisa estar autenticado para excluir sua conta.');
+                    return;
+                }
+                await window.deleteAccountCompletely(uid);
+            });
+        }
+
+        const backBtn = document.getElementById('adminBackToLoginBtn');
+        if (backBtn) {
+            backBtn.addEventListener('click', () => {
+                window.allowRedirect = true;
+                this.auth.signOut().catch(()=>{}).finally(()=>{
+                    safeNavigate('login.html', true);
+                    window.allowRedirect = false;
+                });
+            });
+        }
+    }
+
+    // ------------------ Dados da Turma (links e reclamações) ------------------
+    subscribeClassLinksAdmin(){
+        if (!this.db) return;
+        const container = document.getElementById('adminClassLinksContainer');
+        if (!container) return;
+        // First try a one-time read to show any errors immediately
+        this.db.collection('classLinks').orderBy('order','asc').get().then(snapshot => {
+            if (snapshot.empty) { container.innerHTML = '<div class="text-muted">Nenhum link cadastrado</div>'; }
+            else {
+                const items = [];
+                snapshot.forEach(doc=>{ const d = doc.data()||{}; items.push({ id: doc.id, ...d }); });
+                console.log('admin.js: initial classLinks.get() returned', snapshot.size, snapshot.docs.map(d=>d.id));
+                container.innerHTML = `<div class="small text-muted mb-2">${items.length} link(s) carregado(s)</div>` + items.map(it => this.adminLinkCard(it)).join('');
+            }
+        }).catch(err => {
+            console.error('Erro ao obter classLinks (get):', err);
+            container.innerHTML = `<div class="text-danger">Erro ao carregar links: ${this.escapeHtml(err && (err.message || String(err)))}` + (err && err.code ? ` (code: ${this.escapeHtml(err.code)})` : '') + `</div>`;
+        });
+
+        // Then subscribe for realtime updates
+        this.classLinksUnsub = this.db.collection('classLinks').orderBy('order','asc').onSnapshot(async snap => {
+            console.log('admin.js: classLinks onSnapshot, size=', snap.size, 'ids=', snap.docs.map(d=>d.id));
+            try {
+                console.log('admin.js: snapshot.metadata =', snap.metadata || {});
+            } catch(e){ /* ignore */ }
+
+            if (snap.empty) {
+                // Fallback: try a manual get() and render those results if present.
+                console.warn('admin.js: onSnapshot empty — attempting manual get() as fallback');
+                try {
+                    const manual = await this.db.collection('classLinks').get();
+                    console.log('admin.js: manual get() returned', manual.size, manual.docs.map(d=>d.id));
+                    if (manual.empty) { container.innerHTML = '<div class="text-muted">Nenhum link cadastrado</div>'; return; }
+                    const items = [];
+                    manual.forEach(doc=>{ const d = doc.data()||{}; items.push({ id: doc.id, ...d }); });
+                    container.innerHTML = `<div class="small text-muted mb-2">${items.length} link(s) carregado(s)</div>` + items.map(it => this.adminLinkCard(it)).join('');
+                    return;
+                } catch(getErr) {
+                    console.error('admin.js: manual get() também falhou:', getErr);
+                    container.innerHTML = `<div class="text-danger">Erro ao carregar links: ${this.escapeHtml(getErr && (getErr.message || String(getErr)))}${getErr && getErr.code ? ` (code: ${this.escapeHtml(getErr.code)})` : ''}</div>`;
+                    return;
+                }
+            }
+
+            const items = [];
+            snap.forEach(doc=>{ const d = doc.data()||{}; items.push({ id: doc.id, ...d }); });
+            container.innerHTML = `<div class="small text-muted mb-2">${items.length} link(s) carregado(s)</div>` + items.map(it => this.adminLinkCard(it)).join('');
+        }, err => { console.error('Erro ao carregar classLinks admin (onSnapshot):', err); container.innerHTML = `<div class="text-danger">Erro ao carregar links: ${this.escapeHtml(err && (err.message || String(err)))}${err && err.code ? ` (code: ${this.escapeHtml(err.code)})` : ''}</div>`; });
+    }
+
+    adminLinkCard(link){
+        const title = link.title || 'Sem título';
+        const url = link.url || '#';
+        return `
+            <div class="d-flex justify-content-between align-items-start mb-2 p-2 border rounded">
+                <div style="max-width:70%">
+                    <div class="fw-bold text-truncate">${this.escapeHtml(title)}</div>
+                    <div class="small text-muted text-truncate">${this.escapeHtml(url)}</div>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="adminSystem.openAdminEditLink('${link.id}')"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="adminSystem.deleteAdminLink('${link.id}')"><i class="bi bi-trash"></i></button>
+                </div>
+            </div>
+        `;
+    }
+
+    async openAdminEditLink(id){
+        // reuse the modal from dados.js if present, otherwise create local modal
+        const existing = document.getElementById('classLinkModal');
+        if (existing) {
+            // delegate to global modal handler by filling inputs and showing
+            const titleInput = document.getElementById('classLinkTitle');
+            const urlInput = document.getElementById('classLinkUrl');
+            const saveBtn = document.getElementById('classLinkSave');
+            if (!id) { titleInput.value=''; urlInput.value=''; saveBtn.onclick = async ()=>{}; }
+            // call the function from dados.js by opening modal
+            if (typeof openEditLinkModal === 'function') {
+                openEditLinkModal(id);
+                return;
+            }
+        }
+        // fallback: create a modal in the admin page and use it for create/edit
+        try {
+            let modal = document.getElementById('adminClassLinkModal');
+            if (!modal) {
+                document.body.insertAdjacentHTML('beforeend', `
+                    <div class="modal fade" id="adminClassLinkModal" tabindex="-1">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Gerenciar Link da Turma</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="mb-2">
+                                        <label class="form-label">Título</label>
+                                        <input id="adminClassLinkTitle" class="form-control" />
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label">URL</label>
+                                        <input id="adminClassLinkUrl" class="form-control" placeholder="https://drive.google.com/..." />
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                    <button id="adminClassLinkSave" class="btn btn-primary">Salvar</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `);
+                modal = document.getElementById('adminClassLinkModal');
+            }
+
+            const titleInput = document.getElementById('adminClassLinkTitle');
+            const urlInput = document.getElementById('adminClassLinkUrl');
+            const saveBtn = document.getElementById('adminClassLinkSave');
+
+            const bsModal = new bootstrap.Modal(modal);
+
+            // prepare save handler
+            saveBtn.onclick = async () => {
+                const title = titleInput.value.trim();
+                const url = urlInput.value.trim();
+                if (!title || !url) { alert('Preencha título e URL'); return; }
+                try {
+                    saveBtn.disabled = true; saveBtn.textContent = 'Salvando...';
+                    if (!id) {
+                        const ref = await this.db.collection('classLinks').add({ title, url, createdAt: firebase.firestore.FieldValue.serverTimestamp(), createdBy: this.currentUser?.uid || null });
+                        console.log('admin: created classLink', ref.id, { title, url });
+                        this.showAlert('Link criado', 'success');
+                    } else {
+                        await this.db.collection('classLinks').doc(id).update({ title, url });
+                        this.showAlert('Link atualizado', 'success');
+                    }
+                    bsModal.hide();
+                    // refresh list
+                    this.subscribeClassLinksAdmin();
+                } catch (err) {
+                    console.error('Erro ao salvar link admin:', err);
+                    alert('Erro ao salvar link: ' + (err.message || err.code || ''));
+                } finally {
+                    saveBtn.disabled = false; saveBtn.textContent = 'Salvar';
+                }
+            };
+
+            // If editing, load existing
+            if (id) {
+                try {
+                    const doc = await this.db.collection('classLinks').doc(id).get();
+                    const data = doc.exists ? doc.data() : {};
+                    titleInput.value = data.title || '';
+                    urlInput.value = data.url || '';
+                } catch (err) {
+                    console.warn('Erro ao carregar link para editar:', err);
+                }
+            } else {
+                titleInput.value = '';
+                urlInput.value = '';
+            }
+
+            bsModal.show();
+        } catch (err) {
+            console.error('Erro ao abrir modal admin para link:', err);
+            this.showAlert('Erro ao abrir modal de link: ' + (err.message || err.code || ''), 'danger');
+        }
+    }
+
+    async deleteAdminLink(id){
+        if (!confirm('Confirmar exclusão deste link?')) return;
+        try {
+            await this.db.collection('classLinks').doc(id).delete();
+            this.showAlert('Link excluído', 'success');
+                // Refresh the admin list immediately to reflect deletion
+                try { this.subscribeClassLinksAdmin(); } catch(e){ console.warn('Erro ao refresh links after delete', e); }
+        } catch (err) {
+            console.error('Erro ao excluir link admin:', err);
+            this.showAlert('Erro ao excluir link: '+err.message, 'danger');
+        }
+    }
+
+    subscribeComplaints(){
+        if (!this.db) return;
+        this.complaintsUnsub = this.db.collection('classComplaints').orderBy('createdAt','desc').limit(50).onSnapshot(snap => {
+            const container = document.getElementById('adminComplaintsContainer');
+            if (!container) return;
+            if (snap.empty) { container.innerHTML = '<div class="text-muted">Nenhuma reclamação recente</div>'; return; }
+            const items = [];
+            snap.forEach(doc=>{ items.push({ id: doc.id, ...(doc.data()||{}) }); });
+            this.complaints = items;
+            this.renderComplaints();
+        }, err => { console.error('Erro ao carregar complaints:', err); document.getElementById('adminComplaintsContainer').innerHTML = '<div class="text-danger">Erro ao carregar reclamações</div>'; });
+    }
+
+    renderComplaints(){
+        const container = document.getElementById('adminComplaintsContainer');
+        if (!container) return;
+        let items = this.complaints || [];
+        if (this.showOnlyUnread) items = items.filter(i => !i.seen);
+        if (items.length === 0) { container.innerHTML = '<div class="text-muted">Nenhuma reclamação recente</div>'; return; }
+        container.innerHTML = items.map(it => this.complaintCard(it)).join('');
+    }
+
+    complaintCard(c){
+        const time = c.createdAt ? (c.createdAt.toDate ? this.formatDate(c.createdAt) : String(c.createdAt)) : '—';
+        const who = c.anonymous ? 'Anônimo' : (c.userName || 'Anônimo');
+        const seenClass = c.seen ? 'complaint-seen' : '';
+        return `
+            <div class="border rounded p-2 mb-2 ${seenClass}">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div style="max-width:75%">
+                        <div class="small text-muted">${this.escapeHtml(who)} — ${time}</div>
+                        <div class="mt-1">${this.escapeHtml(c.message)}</div>
+                    </div>
+                    <div class="btn-group-vertical ms-2">
+                        <button class="btn btn-sm btn-outline-success" onclick="adminSystem.markComplaintSeen('${c.id}')">Marcar como lida</button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="adminSystem.deleteComplaint('${c.id}')">Excluir</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    async deleteComplaint(id){
+        if (!confirm('Confirmar exclusão desta reclamação? Esta ação não pode ser desfeita.')) return;
+        try {
+            await this.db.collection('classComplaints').doc(id).delete();
+            this.showAlert('Reclamação excluída', 'success');
+        } catch (err) {
+            console.error('Erro ao excluir reclamação:', err);
+            this.showAlert('Erro ao excluir reclamação: ' + (err.message || err.code || ''), 'danger');
+        }
+    }
+
+    // Toggle seen/unseen
+    async markComplaintSeen(id){
+        try {
+            const doc = await this.db.collection('classComplaints').doc(id).get();
+            if (!doc.exists) return this.showAlert('Reclamação não encontrada', 'warning');
+            const data = doc.data() || {};
+            const newSeen = !data.seen;
+            await this.db.collection('classComplaints').doc(id).update({ seen: newSeen });
+            this.showAlert(newSeen ? 'Marcado como lido' : 'Marcado como não lida', 'success');
+        } catch(err){ console.error(err); this.showAlert('Erro: '+(err.message||err.code||''),'danger'); }
+    }
+
+    async markComplaintResolved(id){
+        try { await this.db.collection('classComplaints').doc(id).update({ resolved:true, seen:true }); this.showAlert('Marcado como resolvido', 'success'); }
+        catch(err){ console.error(err); this.showAlert('Erro: '+err.message,'danger'); }
     }
 
     setupEventListeners() {
@@ -395,6 +770,34 @@ class AdminSystem {
         document.getElementById('adminContent').classList.remove('d-none');
     }
 
+    async showAdminDebugInfo(){
+        const header = document.querySelector('.admin-header .container .row .col');
+        if (!header) return;
+        const infoId = 'adminDebugInfo';
+        let el = document.getElementById(infoId);
+        if (!el) {
+            el = document.createElement('div');
+            el.id = infoId;
+            el.className = 'small text-white mt-1';
+            header.appendChild(el);
+        }
+
+        const uid = this.currentUser?.uid || '—';
+        let claimAdmin = false;
+        try {
+            const token = await this.currentUser.getIdTokenResult();
+            claimAdmin = !!(token && token.claims && token.claims.admin);
+        } catch(e){ console.warn('Erro ao ler idTokenResult', e); }
+
+        let role = '—';
+        try {
+            const doc = await this.db.collection('users').doc(uid).get();
+            if (doc.exists) role = doc.data().role || '—';
+        } catch(e){ console.warn('Erro ao ler users doc', e); }
+
+        el.textContent = `UID: ${uid} · claim.admin: ${claimAdmin} · users/{uid}.role: ${role}`;
+    }
+
     showAccessDenied() {
         document.getElementById('loadingContainer').classList.add('d-none');
         document.getElementById('accessDeniedContainer').classList.remove('d-none');
@@ -430,6 +833,18 @@ class AdminSystem {
             });
         } catch (error) {
             return 'Data inválida';
+        }
+    }
+
+    // Escapa HTML para inserção segura em templates
+    escapeHtml(text) {
+        try {
+            if (text === null || text === undefined) return '';
+            const d = document.createElement('div');
+            d.textContent = String(text);
+            return d.innerHTML;
+        } catch (e) {
+            return String(text);
         }
     }
 
@@ -506,47 +921,72 @@ class AdminSystem {
     // Método para criar entrada de log
     createLogEntry(log) {
         const timestamp = log.timestamp ? this.formatDate(log.timestamp) : 'Data não disponível';
-        const actionIcon = this.getActionIcon(log.action);
-        const actionColor = this.getActionColor(log.newRole);
+        const actionInfo = this.getActionInfo(log);
         
         return `
-            <div class="card mb-2 border-start border-${actionColor} border-3">
+            <div class="card mb-2 border-start border-${actionInfo.color} border-3">
                 <div class="card-body py-2">
                     <div class="d-flex justify-content-between align-items-start">
                         <div class="d-flex align-items-center">
-                            <i class="bi ${actionIcon} text-${actionColor} me-3"></i>
+                            <i class="bi ${actionInfo.icon} text-${actionInfo.color} me-3"></i>
                             <div>
-                                <strong>Mudança de Permissão</strong>
-                                <p class="mb-1 small">
-                                    <strong>${log.adminEmail}</strong> ${log.newRole === 'admin' ? 'promoveu' : 'rebaixou'} 
-                                    <strong>${log.targetUserEmail}</strong> 
-                                    ${log.newRole === 'admin' ? 'a administrador' : 'para usuário comum'}
-                                </p>
-                                <small class="text-muted">
-                                    ${log.oldRole} → ${log.newRole} | ${timestamp}
-                                </small>
+                                <strong>${actionInfo.title}</strong>
+                                <p class="mb-1 small">${actionInfo.description}</p>
+                                <small class="text-muted">${timestamp}</small>
                             </div>
                         </div>
-                        <span class="badge bg-${actionColor}">${log.newRole.toUpperCase()}</span>
+                        ${actionInfo.badge ? `<span class="badge bg-${actionInfo.color}">${actionInfo.badge}</span>` : ''}
                     </div>
                 </div>
             </div>
         `;
     }
 
-    // Método para obter ícone da ação
-    getActionIcon(action) {
-        switch (action) {
+    // Método para obter informações da ação
+    getActionInfo(log) {
+        const adminEmail = log.adminEmail || 'Admin desconhecido';
+        const targetEmail = log.targetUserEmail || log.targetEmail || 'Usuário desconhecido';
+        
+        switch (log.action) {
             case 'role_change':
-                return 'bi-shield-check';
+                const newRole = log.newRole || 'desconhecido';
+                const oldRole = log.oldRole || 'desconhecido';
+                const isPromotion = newRole === 'admin';
+                return {
+                    icon: 'bi-shield-check',
+                    color: isPromotion ? 'success' : 'warning',
+                    title: 'Mudança de Permissão',
+                    description: `<strong>${adminEmail}</strong> ${isPromotion ? 'promoveu' : 'rebaixou'} <strong>${targetEmail}</strong> ${isPromotion ? 'a administrador' : 'para usuário comum'} (${oldRole} → ${newRole})`,
+                    badge: newRole.toUpperCase()
+                };
+            
+            case 'block_user':
+                return {
+                    icon: 'bi-lock',
+                    color: 'danger',
+                    title: 'Usuário Bloqueado',
+                    description: `<strong>${adminEmail}</strong> bloqueou <strong>${targetEmail}</strong>`,
+                    badge: 'BLOQUEADO'
+                };
+            
+            case 'unblock_user':
+                return {
+                    icon: 'bi-unlock',
+                    color: 'success',
+                    title: 'Usuário Desbloqueado',
+                    description: `<strong>${adminEmail}</strong> desbloqueou <strong>${targetEmail}</strong>`,
+                    badge: 'ATIVO'
+                };
+            
             default:
-                return 'bi-info-circle';
+                return {
+                    icon: 'bi-info-circle',
+                    color: 'info',
+                    title: log.action || 'Ação Administrativa',
+                    description: `<strong>${adminEmail}</strong> realizou uma ação administrativa`,
+                    badge: null
+                };
         }
-    }
-
-    // Método para obter cor da ação
-    getActionColor(newRole) {
-        return newRole === 'admin' ? 'success' : 'warning';
     }
 
     // Método para mostrar erro nos logs
@@ -588,3 +1028,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
+
+// Dev helpers for pages that don't load app.js (admin.html)
+function postToSW(msg){ if (!('serviceWorker' in navigator)) return; navigator.serviceWorker.getRegistration().then(reg=>{ if (reg && reg.active) reg.active.postMessage(msg); }); }
+
+window.devDisableSWCache = function(disable){
+    try { localStorage.setItem('disableSWCache', disable ? '1' : '0'); } catch(e){}
+    postToSW({ type: 'SET_DISABLE_CACHE', value: !!disable });
+};
+
+window.devClearSWCache = function(){ postToSW({ type: 'CLEAR_CACHE' }); };
+
+// Auto-apply based on URL or localStorage
+try {
+    const params = new URLSearchParams(window.location.search);
+    const noCacheParam = params.get('no-cache');
+    const fromStorage = localStorage.getItem('disableSWCache');
+    if (noCacheParam === '1' || fromStorage === '1') {
+        postToSW({ type: 'SET_DISABLE_CACHE', value: true });
+        console.info('Dev: service worker caching disabled for this session (admin page)');
+    }
+} catch(e){ /* ignore */ }
