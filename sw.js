@@ -13,6 +13,9 @@ const urlsToCache = [
     'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css'
 ];
 
+// runtime flag controllable via postMessage from the page
+let disableCaching = false;
+
 // Instalar Service Worker
 self.addEventListener('install', (event) => {
     event.waitUntil(
@@ -59,6 +62,14 @@ self.addEventListener('fetch', (event) => {
         return; // Deixar APIs passarem direto
     }
     
+    // If caching is disabled (development mode), prefer network-first
+    if (disableCaching) {
+        event.respondWith(
+            fetch(event.request.clone()).then((response) => response).catch(() => caches.match(event.request))
+        );
+        return;
+    }
+
     event.respondWith(
         caches.match(event.request)
             .then((response) => {
@@ -92,8 +103,18 @@ self.addEventListener('fetch', (event) => {
 
 // Listener para mensagens do app
 self.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'SKIP_WAITING') {
+    if (!event.data) return;
+    const data = event.data;
+    if (data.type === 'SKIP_WAITING') {
         self.skipWaiting();
+    }
+    if (data.type === 'SET_DISABLE_CACHE') {
+        disableCaching = !!data.value;
+        console.log('ServiceWorker: disableCaching set to', disableCaching);
+    }
+    if (data.type === 'CLEAR_CACHE') {
+        console.log('ServiceWorker: clearing all caches');
+        caches.keys().then(keys => Promise.all(keys.map(k=>caches.delete(k))));
     }
 });
 

@@ -55,6 +55,30 @@
         #confirmModal .modal-footer {
             color: #000 !important;
         }
+        
+        /* Scroll personalizado para lista de usuários */
+        #usersContainer {
+            scrollbar-width: thin;
+            scrollbar-color: #ff6b35 #f1f1f1;
+        }
+        
+        #usersContainer::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        #usersContainer::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        
+        #usersContainer::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, #ff6b35, #f7931e);
+            border-radius: 4px;
+        }
+        
+        #usersContainer::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #e55a2b, #e5821a);
+        }
     </style>
 </head>
 <body>
@@ -141,8 +165,8 @@
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="security-tab" data-bs-toggle="tab" data-bs-target="#securityPanel" type="button" role="tab">
-                        <i class="bi bi-shield-check me-2"></i>Segurança
+                    <button class="nav-link" id="dados-tab" data-bs-toggle="tab" data-bs-target="#dadosPanel" type="button" role="tab">
+                        <i class="bi bi-folder2-open me-2"></i>Dados da Turma
                     </button>
                 </li>
             </ul>
@@ -186,8 +210,8 @@
                         <div class="card-header">
                             <h5 class="mb-0"><i class="bi bi-people"></i> Lista de Usuários</h5>
                         </div>
-                        <div class="card-body">
-                            <div id="usersContainer">
+                        <div class="card-body p-0">
+                            <div id="usersContainer" style="max-height: 480px; overflow-y: auto; padding: 1rem;">
                                 <!-- Users will be loaded here -->
                             </div>
                         </div>
@@ -216,51 +240,34 @@
                     </div>
                 </div>
 
-                <!-- Security Panel -->
-                <div class="tab-pane fade" id="securityPanel" role="tabpanel">
+                <!-- Dados da Turma Panel -->
+                <div class="tab-pane fade" id="dadosPanel" role="tabpanel">
                     <div class="row">
                         <div class="col-md-6">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h6 class="mb-0"><i class="bi bi-shield-lock"></i> Status de Segurança</h6>
+                            <div class="card mb-3">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">Links da Turma</h6>
+                                    <div class="btn-group">
+                                        <button class="btn btn-sm btn-outline-primary" id="adminAddClassLinkBtn"><i class="bi bi-plus-lg"></i> Novo</button>
+                                        <button class="btn btn-sm btn-outline-secondary" id="adminRefreshLinksBtn"><i class="bi bi-arrow-clockwise"></i> Atualizar</button>
+                                    </div>
                                 </div>
                                 <div class="card-body">
-                                    <div class="mb-3">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <span>Regras do Firestore</span>
-                                            <span class="badge bg-success">Ativas</span>
-                                        </div>
-                                        <small class="text-muted">Regras de segurança protegendo os dados</small>
-                                    </div>
-                                    <div class="mb-3">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <span>Arquivos de Setup</span>
-                                            <span class="badge bg-success">Removidos</span>
-                                        </div>
-                                        <small class="text-muted">Falhas de segurança eliminadas</small>
-                                    </div>
-                                    <div class="mb-3">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <span>Logs de Auditoria</span>
-                                            <span class="badge bg-success">Ativos</span>
-                                        </div>
-                                        <small class="text-muted">Todas as ações sendo registradas</small>
-                                    </div>
+                                    <div id="adminClassLinksContainer">Carregando...</div>
                                 </div>
                             </div>
                         </div>
                         <div class="col-md-6">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h6 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Alertas de Segurança</h6>
+                            <div class="card mb-3">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">Reclamações / Sugestões</h6>
+                                    <div class="btn-group">
+                                        <button class="btn btn-sm btn-outline-secondary" id="refreshComplaintsBtn">Atualizar</button>
+                                        <button class="btn btn-sm btn-outline-primary" id="toggleComplaintsFilterBtn">Apenas não-lidas</button>
+                                    </div>
                                 </div>
                                 <div class="card-body">
-                                    <div class="alert alert-success">
-                                        <small><strong>✓ Sistema Seguro:</strong> Todas as vulnerabilidades foram corrigidas.</small>
-                                    </div>
-                                    <div class="alert alert-info">
-                                        <small><strong>ℹ Recomendação:</strong> Monitore regularmente os logs de auditoria.</small>
-                                    </div>
+                                    <div id="adminComplaintsContainer">Carregando...</div>
                                 </div>
                             </div>
                         </div>

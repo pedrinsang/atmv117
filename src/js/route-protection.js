@@ -31,28 +31,23 @@ class RouteProtection {
         this.auth.onAuthStateChanged(async (user) => {
             if (user) {
                 try {
-                    // Verificar campo disabled no documento do usuário
-                    const db = firebase.firestore();
-                    const userDoc = await db.collection('users').doc(user.uid).get();
-                    const userData = userDoc.exists ? userDoc.data() : {};
-                    if (userData && userData.disabled) {
-                        console.warn('⚠️ Conta desabilitada detectada, efetuando signOut');
-                        await this.auth.signOut();
-                        this.hideLoadingScreen();
-                        alert('Sua conta foi bloqueada. Entre em contato com o administrador.');
-                        this.redirectToLogin();
-                        return;
-                    }
-
-                    // Usuário autenticado e não bloqueado - pode continuar
+                    // Não verificar mais conta bloqueada aqui - deixar para auth.js e app.js
+                    // Usuário autenticado - pode continuar
                     this.hideLoadingScreen();
                     console.log('✅ Usuário autenticado:', user.email);
                 } catch (err) {
-                    console.error('Erro ao verificar status do usuário:', err);
+                    console.error('Erro na verificação de autenticação:', err);
                     this.hideLoadingScreen();
                     this.redirectToLogin();
                 }
             } else {
+                // Se estamos no fluxo de blocked (sessionStorage) ou modal ativo, não redirecionar
+                if (sessionStorage.getItem('blockedUid') || (window.isBlockedModalActive && window.isBlockedModalActive())) {
+                    console.log('Blocked flow ativo - route protection não redirecionando');
+                    this.hideLoadingScreen();
+                    return;
+                }
+                
                 // Usuário não autenticado - redirecionar
                 console.log('❌ Usuário não autenticado - redirecionando para login');
                 this.redirectToLogin();
@@ -94,7 +89,12 @@ class RouteProtection {
         // Timeout de segurança - se demorar muito, redirecionar
         setTimeout(() => {
             if (document.getElementById('routeProtectionLoading')) {
-                console.warn('⚠️ Timeout na verificação de autenticação');
+                console.warn('\u26a0\ufe0f Timeout na verifica\u00e7\u00e3o de autentica\u00e7\u00e3o');
+                // Do not redirect if blocked flow is active
+                if (sessionStorage.getItem('blockedUid') || (window.isBlockedModalActive && window.isBlockedModalActive())) {
+                    console.log('Blocked flow ativo - routeProtection timeout n\u00e3o redirecionando');
+                    return;
+                }
                 this.redirectToLogin();
             }
         }, 10000); // 10 segundos
@@ -112,7 +112,12 @@ class RouteProtection {
         this.showRedirectMessage();
         
         setTimeout(() => {
-            window.location.href = 'login.html';
+            // Guard against blocked flow/modal active before redirecting
+            if (sessionStorage.getItem('blockedUid') || (window.isBlockedModalActive && window.isBlockedModalActive())) {
+                console.log('Blocked flow ativo - redirectToLogin will not navigate');
+                return;
+            }
+            safeNavigate('login.html');
         }, 2000);
     }
 
@@ -141,8 +146,15 @@ window.requireAuth = function() {
             if (user) {
                 resolve(user);
             } else {
+                // Verificar se estamos no fluxo blocked (sessionStorage) ou modal ativo antes de redirecionar
+                if (sessionStorage.getItem('blockedUid') || (window.isBlockedModalActive && window.isBlockedModalActive())) {
+                    console.log('Blocked flow ativo - requireAuth não redirecionando');
+                    reject('Blocked flow ativo');
+                    return;
+                }
+
                 reject('Usuário não autenticado');
-                window.location.href = 'login.html';
+                safeNavigate('login.html');
             }
         });
     });
