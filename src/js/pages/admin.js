@@ -1,4 +1,6 @@
-// Sistema de Administração
+// ========================================
+// SISTEMA DE ADMINISTRAÇÃO
+// ========================================
 class AdminSystem {
     constructor() {
         this.auth = firebase.auth();
@@ -6,44 +8,65 @@ class AdminSystem {
         this.users = [];
         this.filteredUsers = [];
         this.auditLogs = [];
-    this.complaints = [];
-    this.showOnlyUnread = false;
+        this.complaints = [];
+        this.showOnlyUnread = false;
         this.currentUser = null;
         this.init();
     }
 
+    // ========================================
+    // INICIALIZAÇÃO DO SISTEMA ADMIN
+    // ========================================
     async init() {
         try {
-            // Verificar autenticação
+            // Verificar se usuário está autenticado
             await this.checkAuthentication();
             
-            // Verificar se é admin
+            // Verificar se usuário possui acesso administrativo
             await this.checkAdminAccess();
             
-            // Inicializar interface
+            // Configurar eventos da interface
             this.setupEventListeners();
             
-            // Carregar dados
+            // ========================================
+            // CARREGAMENTO DE DADOS ADMINISTRATIVOS
+            // ========================================
+            // Carregar lista de usuários
             await this.loadUsers();
-            await this.loadAuditLogs(); // Adicionar carregamento dos logs
+            // Carregar logs de auditoria
+            await this.loadAuditLogs();
             
-            // Subscrições e painéis de admin extras
+            // ========================================
+            // SUBSCRIÇÕES E PAINÉIS ADMINISTRATIVOS
+            // ========================================
+            // Subscrever para links da turma
             this.subscribeClassLinksAdmin();
+            // Subscrever para reclamações
             this.subscribeComplaints();
 
-            // Wire admin buttons
+            // ========================================
+            // CONFIGURAÇÃO DE BOTÕES ADMINISTRATIVOS
+            // ========================================
+            // Botão para adicionar link da turma
             const addBtn = document.getElementById('adminAddClassLinkBtn');
             if (addBtn) addBtn.addEventListener('click', ()=>{ if (typeof openEditLinkModal === 'function') openEditLinkModal(null); else this.openAdminEditLink(null); });
+            
+            // Botão para atualizar reclamações
             const refreshCompl = document.getElementById('refreshComplaintsBtn');
             if (refreshCompl) refreshCompl.addEventListener('click', ()=> this.subscribeComplaints());
+            
+            // Botão para atualizar links
             const refreshLinksBtn = document.getElementById('adminRefreshLinksBtn');
             if (refreshLinksBtn) refreshLinksBtn.addEventListener('click', ()=> { this.subscribeClassLinksAdmin(); this.showAlert('Links atualizados', 'success'); });
+            
+            // Botão para filtrar reclamações
             const toggleFilterBtn = document.getElementById('toggleComplaintsFilterBtn');
             if (toggleFilterBtn) toggleFilterBtn.addEventListener('click', ()=>{ this.showOnlyUnread = !this.showOnlyUnread; toggleFilterBtn.textContent = this.showOnlyUnread ? 'Mostrar todas' : 'Apenas não-lidas'; this.renderComplaints(); });
 
+            // Exibir conteúdo administrativo
             this.showAdminContent();
         } catch (error) {
-            console.error('Erro na inicialização:', error);
+            console.error('Erro na inicialização do sistema administrativo:', error);
             this.showAccessDenied();
         }
     }

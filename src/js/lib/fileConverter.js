@@ -1,3 +1,10 @@
+// ========================================
+// ARQUIVO DESABILITADO - UPLOAD REMOVIDO
+// ========================================
+// Esta funcionalidade foi removida por solicitação do usuário
+// Apenas links externos (Google Drive, YouTube) são suportados
+
+/*
 // filepath: w:\projetos\atmv117\atmv117\src\js\fileConverter.js
 // ===== SISTEMA SIMPLES: APENAS 25MB + GOOGLE DRIVE + YOUTUBE =====
 
@@ -55,3 +62,7 @@ console.log('  - 📁 Upload direto até 25MB');
 console.log('  - 🔗 Google Drive para arquivos maiores');
 console.log('  - 📺 Links do YouTube');
 console.log('  - ❌ SEM conversão automática');
+*/
+
+// Funcionalidade de upload de arquivos foi removida
+console.log('📦 fileConverter.js DESABILITADO - Upload de arquivos removido');

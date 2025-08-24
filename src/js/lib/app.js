@@ -1,50 +1,60 @@
-// Immediate kill-switch: block automatic reloads/navigation during debugging
+// ========================================
+// SISTEMA DE CONTROLE DE DEBUG
+// ========================================
+// Sistema de emergência: bloqueia recarregamentos automáticos durante debug
 try {
-    // Strongly prevent reload/replace/assign until debugging resolved
+    // Previne fortemente reload/replace/assign até que o debug seja resolvido
     if (!window._debugKillSwitchInstalled) {
         window._debugKillSwitchInstalled = true;
         window._origReload = window.location.reload.bind(window.location);
-        window.location.reload = function() { console.warn('DEBUG KILL-SWITCH: reload prevented'); };
+        window.location.reload = function() { console.warn('DEBUG KILL-SWITCH: reload prevenido'); };
         window._origReplace = window.location.replace.bind(window.location);
-        window.location.replace = function(url) { console.warn('DEBUG KILL-SWITCH: replace prevented to', url); };
+        window.location.replace = function(url) { console.warn('DEBUG KILL-SWITCH: replace prevenido para', url); };
         window._origAssign = window.location.assign.bind(window.location);
-        window.location.assign = function(url) { console.warn('DEBUG KILL-SWITCH: assign prevented to', url); };
+        window.location.assign = function(url) { console.warn('DEBUG KILL-SWITCH: assign prevenido para', url); };
         try {
-            // banner suppressed: keep hidden marker for diagnostics without showing debug text
+            // Banner suprimido: mantém marcador oculto para diagnósticos sem mostrar texto de debug
             const b = document.createElement('div');
             b.id = 'debugReloadBanner';
             b.style.display = 'none';
             document.documentElement.appendChild(b);
-        } catch (e) { /* ignore DOM errors */ }
+        } catch (e) { /* ignorar erros de DOM */ }
     }
-} catch (e) { console.warn('Failed to install debug kill-switch', e); }
+} catch (e) { console.warn('Falha ao instalar debug kill-switch', e); }
 
+// ========================================
+// INICIALIZAÇÃO DA APLICAÇÃO
+// ========================================
 document.addEventListener('DOMContentLoaded', function() {
+    // Delay para garantir que todos os recursos foram carregados
     setTimeout(initializeApp, 2000);
     
-    // Registra Service Worker com detecção de atualização (skip em dev - localhost/127.0.0.1)
+    // ========================================
+    // REGISTRO DO SERVICE WORKER
+    // ========================================
+    // Registra Service Worker com detecção de atualização (pula em dev - localhost/127.0.0.1)
     const _host = window.location.hostname;
     const allowSW = !(_host === '127.0.0.1' || _host === 'localhost' || window.location.protocol === 'file:');
     if (allowSW && 'serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js')
             .then((registration) => {
-                console.log('SW registrado com sucesso');
+                console.log('Service Worker registrado com sucesso');
                 
-                // Detecta atualizações
+                // Detecta atualizações do Service Worker
                 registration.addEventListener('updatefound', () => {
                     const newWorker = registration.installing;
                     newWorker.addEventListener('statechange', () => {
                         if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                            // Nova versão disponível - do not force reload during blocked flow
+                            // Nova versão disponível - não força reload durante fluxo bloqueado
                             if (sessionStorage.getItem('blockedUid')) {
-                                console.log('Blocked flow active - skipping SW update reload prompt');
+                                console.log('Fluxo bloqueado ativo - pulando prompt de atualização SW');
                                 return;
                             }
                             try {
                                 if (confirm('Nova versão disponível! Deseja atualizar agora?')) {
                                         safeReload(true);
                                 }
-                            } catch (e) { console.warn('SW updatefound prompt failed', e); }
+                            } catch (e) { console.warn('Falha no prompt de atualização SW', e); }
                         }
                     });
                 });
@@ -57,23 +67,26 @@ document.addEventListener('DOMContentLoaded', function() {
         navigator.serviceWorker.addEventListener('controllerchange', () => {
             // Avoid reloading while blocked flow is active or if we've just reloaded due to SW
             if (sessionStorage.getItem('blockedUid') || sessionStorage.getItem('blockedFlowActive')) {
-                console.log('Blocked flow active - skipping controllerchange reload');
+                console.log('Fluxo bloqueado ativo - pulando reload por controllerchange');
                 return;
             }
             const last = parseInt(sessionStorage.getItem('swReloaded') || '0', 10);
             if (last && (Date.now() - last) < 5000) {
-                console.log('Recent SW reload detected - skipping duplicate reload');
+                console.log('Reload SW recente detectado - pulando reload duplicado');
                 return;
             }
             sessionStorage.setItem('swReloaded', Date.now().toString());
-            console.log('Service worker controllerchange detected - reloading page once');
+            console.log('Mudança de controlador do service worker detectada - recarregando página uma vez');
             safeReload(true);
         });
     }
     else {
-        console.log('Skipping service worker registration on dev host:', window.location.hostname);
+        console.log('Pulando registro do service worker no host de desenvolvimento:', window.location.hostname);
     }
 
+    // ========================================
+    // VERIFICAÇÃO AUTOMÁTICA DE ATUALIZAÇÕES
+    // ========================================
     // Força verificação de atualizações a cada 5 minutos
     setInterval(() => {
         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
@@ -83,9 +96,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }, 5 * 60 * 1000);
 
-    // Dev helpers: allow disabling SW caching via URL param ?no-cache=1 or localStorage.disableSW='1'
+    // ========================================
+    // FERRAMENTAS DE DESENVOLVIMENTO
+    // ========================================
+    // Helpers de dev: permite desabilitar cache SW via parâmetro URL ?no-cache=1 ou localStorage.disableSW='1'
     function postToSW(msg){ if (!('serviceWorker' in navigator)) return; navigator.serviceWorker.getRegistration().then(reg=>{ if (reg && reg.active) reg.active.postMessage(msg); }); }
 
+    // Função para desabilitar cache do Service Worker em desenvolvimento
     window.devDisableSWCache = function(disable){
         localStorage.setItem('disableSWCache', disable ? '1' : '0');
         postToSW({ type: 'SET_DISABLE_CACHE', value: !!disable });

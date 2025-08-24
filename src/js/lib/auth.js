@@ -1,4 +1,6 @@
-// Sistema de Autenticação Firebase
+// ========================================
+// SISTEMA DE AUTENTICAÇÃO FIREBASE
+// ========================================
 class AuthSystem {
     constructor() {
         this.auth = firebase.auth();
@@ -7,12 +9,18 @@ class AuthSystem {
         this.init();
     }
 
+    // ========================================
+    // INICIALIZAÇÃO DO SISTEMA
+    // ========================================
     init() {
         // Verificar se estamos na página de login antes de tentar acessar elementos
         if (this.isLoginPage()) {
             this.initLoginElements();
         }
 
+        // ========================================
+        // OBSERVADOR DE ESTADO DE AUTENTICAÇÃO
+        // ========================================
         // Verificar se já está logado
         this.auth.onAuthStateChanged(async (user) => {
             if (user) {
@@ -21,6 +29,7 @@ class AuthSystem {
                 // Verificar se a conta está bloqueada
                 await this.checkUserStatus(user);
                 
+                // Redirecionar se estiver na página de login
                 if (this.isLoginPage()) {
                     this.redirectToApp();
                 }
@@ -28,12 +37,18 @@ class AuthSystem {
         });
     }
 
+    // ========================================
+    // VERIFICAÇÕES DE PÁGINA
+    // ========================================
     isLoginPage() {
         return document.getElementById('authForm') !== null;
     }
 
+    // ========================================
+    // INICIALIZAÇÃO DOS ELEMENTOS DE LOGIN
+    // ========================================
     initLoginElements() {
-        // Elementos do DOM (só para página de login)
+        // Elementos do DOM (apenas para página de login)
         this.authForm = document.getElementById('authForm');
         this.emailInput = document.getElementById('email');
         this.passwordInput = document.getElementById('password');

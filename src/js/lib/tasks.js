@@ -1,26 +1,110 @@
-// ===== VARIÁVEIS GLOBAIS =====
+// ========================================
+// SISTEMA DE GERENCIAMENTO DE TAREFAS
+// ========================================
+
+// ========================================
+// VARIÁVEIS GLOBAIS
+// ========================================
 let tasks = [];
 let currentViewingTask = null;
 
-// Configuração do GitHub
-const GITHUB_CONFIG = {
-    owner: 'pedrinsang',
-    repo: 'atmv117',
-    token: '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',
-    branch: 'main'
-};
+// ========================================
+// CONFIGURAÇÃO DO GITHUB (REMOVIDA POR SEGURANÇA)
+// ========================================
+// TOKEN GITHUB REMOVIDO - FUNCIONALIDADE DE UPLOAD DESABILITADA
+// Sistema agora funciona apenas com links externos (Google Drive, YouTube)
 
-// ===== FUNÇÕES AUXILIARES =====
+// ========================================
+// FUNÇÕES AUXILIARES
+// ========================================
 
-function fileToBase64(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = error => reject(error);
-    });
+// ========================================
+// FUNÇÕES DE VALIDAÇÃO DE SEGURANÇA
+// ========================================
+
+// Valida entrada de dados da tarefa
+function validateTaskInput(title, type, date, description) {
+    const errors = [];
+    
+    // Validar título
+    if (!title || title.trim().length < 2) {
+        errors.push('Título deve ter pelo menos 2 caracteres');
+    }
+    if (title.length > 100) {
+        errors.push('Título muito longo (máximo 100 caracteres)');
+    }
+    
+    // Validar tipo
+    const validTypes = ['prova', 'trabalho', 'atividade'];
+    if (!validTypes.includes(type)) {
+        errors.push('Tipo de tarefa inválido');
+    }
+    
+    // Validar data
+    const taskDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (isNaN(taskDate.getTime())) {
+        errors.push('Data inválida');
+    }
+    if (taskDate < today) {
+        errors.push('Data não pode ser no passado');
+    }
+    
+    // Validar descrição
+    if (description && description.length > 1000) {
+        errors.push('Descrição muito longa (máximo 1000 caracteres)');
+    }
+    
+    return errors;
 }
 
+// Valida URLs de forma segura
+function validateUrls(googleDriveLinks, youtubeLinks) {
+    const errors = [];
+    
+    // Validar Google Drive
+    googleDriveLinks.forEach((url, index) => {
+        if (!isValidGoogleDriveUrl(url)) {
+            errors.push(`Google Drive link ${index + 1} inválido`);
+        }
+    });
+    
+    // Validar YouTube
+    youtubeLinks.forEach((url, index) => {
+        if (!isValidYouTubeUrl(url)) {
+            errors.push(`YouTube link ${index + 1} inválido`);
+        }
+    });
+    
+    return errors;
+}
+
+// Verifica se URL do Google Drive é válida
+function isValidGoogleDriveUrl(url) {
+    try {
+        const urlObj = new URL(url);
+        return urlObj.hostname === 'drive.google.com' || 
+               urlObj.hostname === 'docs.google.com';
+    } catch {
+        return false;
+    }
+}
+
+// Verifica se URL do YouTube é válida
+function isValidYouTubeUrl(url) {
+    try {
+        const urlObj = new URL(url);
+        return urlObj.hostname === 'www.youtube.com' || 
+               urlObj.hostname === 'youtube.com' ||
+               urlObj.hostname === 'youtu.be';
+    } catch {
+        return false;
+    }
+}
+
+// Escapa caracteres HTML para prevenir XSS
 function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
@@ -28,6 +112,7 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// Formata data para exibição em português
 function formatDate(dateString) {
     const date = new Date(dateString + 'T00:00:00');
     return date.toLocaleDateString('pt-BR', { 
@@ -37,6 +122,7 @@ function formatDate(dateString) {
     });
 }
 
+// Formata tamanho de arquivo em formato legível
 function formatFileSize(bytes) {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -45,11 +131,12 @@ function formatFileSize(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
+// Retorna cor baseada no tipo de tarefa
 function getTypeColor(type) {
     switch (type) {
         case 'prova': return 'danger';
-        case 'trabalho': return 'warning';
-        case 'atividade': return 'success';
+        case 'trabalho': return 'success';
+        case 'atividade': return 'warning';
         default: return 'secondary';
     }
 }
@@ -127,69 +214,11 @@ function renderAttachmentIcons(attachments) {
 
 // ===== FUNÇÕES DO GITHUB =====
 
-async function uploadToGitHub(file, taskId) {
-    const timestamp = Date.now();
-    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const fileName = `${timestamp}_${sanitizedName}`;
-    const path = `uploads/${fileName}`;
-    
-    try {
-        // LIMITE REAL DO GITHUB: 25MB
-        const maxSize = 25 * 1024 * 1024; // 25MB
-        if (file.size > maxSize) {
-            throw new Error(`Arquivo muito grande: ${formatFileSize(file.size)} (máximo 25MB para GitHub)`);
-        }
-        
-        const base64Content = await fileToBase64(file);
-        const content = base64Content.split(',')[1];
-        
-        const response = await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${path}`, {
-            method: 'PUT',
-            headers: {
-                'Authorization': `token ${GITHUB_CONFIG.token}`,
-                'Content-Type': 'application/json',
-                'Accept': 'application/vnd.github.v3+json'
-            },
-            body: JSON.stringify({
-                message: `Upload: ${fileName} for task ${taskId} (${formatFileSize(file.size)})`,
-                content: content,
-                branch: GITHUB_CONFIG.branch
-            })
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error('GitHub API Error:', errorData);
-            
-            // Tratamento específico para arquivo muito grande
-            if (response.status === 422 && errorData.message?.includes('too large')) {
-                throw new Error(`Arquivo muito grande para GitHub: ${formatFileSize(file.size)} (máximo 25MB)`);
-            }
-            
-            if (response.status === 401) {
-                throw new Error('Token GitHub inválido. Verifique as credenciais.');
-            }
-            
-            throw new Error(`GitHub upload failed: ${response.status} - ${errorData.message}`);
-        }
-        
-        const result = await response.json();
-        
-        return {
-            name: file.name,
-            fileName: fileName,
-            path: path,
-            downloadUrl: result.content.download_url,
-            sha: result.content.sha,
-            size: file.size,
-            type: file.type
-        };
-        
-    } catch (error) {
-        console.error('Erro no upload GitHub:', error);
-        throw error;
-    }
-}
+// ========================================
+// FUNÇÕES DO GITHUB (REMOVIDAS - SEM UPLOAD)
+// ========================================
+// Funcionalidade de upload removida por solicitação do usuário
+// Apenas links externos (Google Drive, YouTube) são suportados
 
 async function deleteFromGitHub(filePath, sha) {
     try {
@@ -216,25 +245,9 @@ async function deleteFromGitHub(filePath, sha) {
     }
 }
 
-// ===== FUNÇÕES DE PROCESSAMENTO DE ARQUIVOS =====
-
-async function processFileWithConversion(file, taskId) {
-    try {
-        console.log(`🔄 Processando ${file.name} (${formatFileSize(file.size)})...`);
-        
-        // Usar sistema simples
-        const result = await window.fileConverter.processFile(file, taskId);
-        
-        console.log(`✅ Processamento bem-sucedido: ${file.name}`);
-        return result;
-        
-    } catch (error) {
-        console.error(`❌ Erro ao processar ${file.name}:`, error);
-        throw error;
-    }
-}
-
-// ===== FUNÇÕES DE CARREGAMENTO =====
+// ========================================
+// FUNÇÕES DE CARREGAMENTO
+// ========================================
 
 function loadTasks() {
     const tasksList = document.getElementById('tasksList');
@@ -244,6 +257,12 @@ function loadTasks() {
 
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
+    
+    // Carregar um período maior para melhor navegação no calendário
+    const yearStart = new Date(today.getFullYear(), 0, 1); // Janeiro
+    const yearEnd = new Date(today.getFullYear(), 11, 31); // Dezembro
+    
+    // Para exibição, ainda usar o mês atual
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
     const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
@@ -253,100 +272,154 @@ function loadTasks() {
             console.log('Usuário não autenticado, aguardando autenticação...');
             firebase.auth().onAuthStateChanged((user) => {
                 if (user) {
-                    loadTasksData(monthStart, monthEnd, todayStr);
+                    loadTasksData(yearStart, yearEnd, todayStr, monthStart, monthEnd);
                 }
             });
             return;
         }
         
-        loadTasksData(monthStart, monthEnd, todayStr);
+        loadTasksData(yearStart, yearEnd, todayStr, monthStart, monthEnd);
     } else {
         setTimeout(loadTasks, 1000);
     }
 }
 
-function loadTasksData(monthStart, monthEnd, todayStr) {
-    console.log('📋 Carregando dados das tarefas...');
+function loadTasksData(yearStart, yearEnd, todayStr, monthStart, monthEnd) {
+    console.log('📋 Carregando tarefas...');
     
     // Verificar novamente se o usuário está autenticado
     const user = firebase.auth().currentUser;
     if (!user) {
-        console.error('❌ Usuário não autenticado ao tentar carregar tarefas');
+        console.error('❌ Usuário não autenticado');
+        const tasksList = document.getElementById('tasksList');
+        if (tasksList) {
+            tasksList.innerHTML = '<div class="col-12 text-center text-danger">❌ Erro de autenticação</div>';
+        }
+        return;
+    }
+
+    // Verificar se o banco de dados está disponível
+    if (!window.db) {
+        console.error('❌ Banco não disponível');
+        const tasksList = document.getElementById('tasksList');
+        if (tasksList) {
+            tasksList.innerHTML = '<div class="col-12 text-center text-danger">❌ Banco de dados indisponível</div>';
+        }
         return;
     }
     
-    console.log('✅ Usuário autenticado, iniciando listener das tarefas...');
-    
+    // Carregar tarefas
     window.db.collection('tasks')
-        .where('date', '>=', monthStart.toISOString().split('T')[0])
-        .where('date', '<=', monthEnd.toISOString().split('T')[0])
-        .orderBy('date')
+        .where('userId', '==', user.uid)
         .onSnapshot((snapshot) => {
-            console.log('📊 Snapshot das tarefas recebido - documentos:', snapshot.size);
-            tasks = [];
-            snapshot.forEach((doc) => {
-                const task = { id: doc.id, ...doc.data() };
-                if (task.date < todayStr) {
-                    window.db.collection('tasks').doc(task.id).delete();
-                } else {
-                    tasks.push(task);
-                }
-            });
-            renderTasks();
-            renderWeekTasks();
-            console.log('✅ Tarefas renderizadas com sucesso');
+            if (snapshot.size === 0) {
+                // Verificar tarefas antigas
+                window.db.collection('tasks')
+                    .onSnapshot((allSnapshot) => {
+                        console.log('� Total de tarefas no banco:', allSnapshot.size);
+                        processTasksSnapshot(allSnapshot, user, yearStart, yearEnd, todayStr, monthStart, monthEnd, true);
+                    }, (error) => {
+                        console.error('❌ Erro ao carregar todas as tarefas:', error);
+                        showErrorMessage();
+                    });
+            } else {
+                processTasksSnapshot(snapshot, user, yearStart, yearEnd, todayStr, monthStart, monthEnd, false);
+            }
         }, (error) => {
-            console.error('❌ Erro ao carregar tarefas:', error);
-            console.error('   - Código:', error.code);
-            console.error('   - Mensagem:', error.message);
-            
-            if (error.code === 'permission-denied') {
-                console.error('🚫 PERMISSÃO NEGADA nas tarefas - Possíveis causas:');
-                console.error('   1. Regras do Firestore muito restritivas');
-                console.error('   2. Usuário não tem documento na coleção users');
-                console.error('   3. Token de autenticação expirado');
+            console.error('❌ Erro ao carregar tarefas do usuário:', error);
+            showErrorMessage();
+        });
+}
+
+function processTasksSnapshot(snapshot, user, yearStart, yearEnd, todayStr, monthStart, monthEnd, isFallback) {
+    tasks = []; // Array global para todas as tarefas do ano
+    let displayTasks = []; // Array para tarefas do mês atual para exibição
+    
+    const yearStartStr = yearStart.toISOString().split('T')[0];
+    const yearEndStr = yearEnd.toISOString().split('T')[0];
+    const monthStartStr = monthStart.toISOString().split('T')[0];
+    const monthEndStr = monthEnd.toISOString().split('T')[0];
+    
+    snapshot.forEach((doc) => {
+        const taskData = doc.data();
+        
+        if (isFallback) {
+            // Se não tem userId, assumir que é do usuário atual se foi criada por ele
+            if (!taskData.userId) {
+                const userEmail = user.email;
+                const userDisplayName = user.displayName;
+                const createdBy = taskData.createdBy;
                 
-                // diagnóstico automático removido
-                
-                // Mostrar erro na interface
-                const tasksList = document.getElementById('tasksList');
-                if (tasksList) {
-                    tasksList.innerHTML = `
-                        <div class="col-12">
-                            <div class="alert alert-danger">
-                                <h5><i class="bi bi-shield-x"></i> Erro de Permissão</h5>
-                                <p>Não foi possível carregar as tarefas. Possíveis soluções:</p>
-                                <ul>
-                                    <li>Faça logout e login novamente</li>
-                                    <li>Verifique as regras do Firestore</li>
-                                    <li>Entre em contato com o administrador</li>
-                                </ul>
-                                <button class="btn btn-outline-danger" onclick="window.location.reload()">
-                                    <i class="bi bi-arrow-clockwise"></i> Tentar Novamente
-                                </button>
-                            </div>
-                        </div>
-                    `;
+                if (createdBy === userEmail || createdBy === userDisplayName || createdBy === 'Usuário') {
+                    // Atualizar a tarefa com userId
+                    window.db.collection('tasks').doc(doc.id).update({ userId: user.uid })
+                        .catch(error => console.error('❌ Erro na migração:', error));
+                    
+                    taskData.userId = user.uid; // Para processamento atual
+                } else {
+                    return; // Pular esta tarefa
                 }
             }
-        });
+        }
+        
+        // ✅ VALIDAR PROPRIEDADE
+        if (taskData.userId !== user.uid) {
+            return;
+        }
+        
+        // ✅ CARREGAR TAREFAS DO ANO INTEIRO (para navegação no calendário)
+        if (taskData.date >= yearStartStr && taskData.date <= yearEndStr) {
+            const task = { id: doc.id, ...taskData };
+            
+            // Limpar tarefas antigas
+            if (task.date < todayStr) {
+                window.db.collection('tasks').doc(task.id).delete()
+                    .catch(error => console.error('Erro ao deletar tarefa antiga:', error));
+            } else {
+                tasks.push(task); // Adicionar ao array global
+                
+                // ✅ SEPARAR TAREFAS DO MÊS ATUAL PARA EXIBIÇÃO
+                if (taskData.date >= monthStartStr && taskData.date <= monthEndStr) {
+                    displayTasks.push(task);
+                }
+            }
+        }
+    });
+    
+    // ✅ ORDENAR AMBOS OS ARRAYS
+    tasks.sort((a, b) => new Date(a.date) - new Date(b.date));
+    displayTasks.sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    // ✅ RENDERIZAR APENAS AS TAREFAS DO MÊS ATUAL
+    renderTasks(displayTasks);
+    renderWeekTasks(displayTasks);
+}
+
+function showErrorMessage() {
+    const tasksList = document.getElementById('tasksList');
+    if (tasksList) {
+        tasksList.innerHTML = '<div class="col-12 text-center text-danger">❌ Erro ao carregar tarefas</div>';
+    }
 }
 
 // ===== FUNÇÕES DE RENDERIZAÇÃO =====
 
-function renderTasks() {
+function renderTasks(tasksToRender = tasks) {
     const tasksList = document.getElementById('tasksList');
     if (!tasksList) return;
 
-    if (tasks.length === 0) {
+    if (tasksToRender.length === 0) {
         tasksList.innerHTML = `
             <div class="col-12 text-center">
                 <div class="card">
                     <div class="card-body">
                         <i class="bi bi-calendar-x" style="font-size: 3rem;"></i>
                         <p class="mt-3">Nenhuma tarefa para este mês</p>
-                        <button class="btn btn-orange" onclick="abrirCalendarioTelaCheia()">
-                            Abrir Calendário
+                        <button class="btn btn-orange">
+                            <a onclick="navigateToPage('calendario')">
+                                <i class="bi bi-calendar3"></i>
+                                Abrir Calendário
+                            </a>
                         </button>
                     </div>
                 </div>
@@ -356,9 +429,9 @@ function renderTasks() {
     }
 
     const todayStr = new Date().toISOString().split('T')[0];
-    const nextTaskIndex = tasks.findIndex(task => task.date >= todayStr);
+    const nextTaskIndex = tasksToRender.findIndex(task => task.date >= todayStr);
 
-    tasksList.innerHTML = tasks.map((task, idx) => `
+    tasksList.innerHTML = tasksToRender.map((task, idx) => `
         <div class="col-md-6 col-lg-4 mb-3">
             <div class="card task-card task-type-${task.type} ${idx === nextTaskIndex ? 'border border-4 border-orange' : ''}" 
                  style="cursor: pointer;" 
@@ -392,7 +465,7 @@ function renderTasks() {
     `).join('');
 }
 
-function renderWeekTasks() {
+function renderWeekTasks(tasksToRender = tasks) {
     const tasksWeekList = document.getElementById('tasksWeekList');
     if (!tasksWeekList) return;
 
@@ -402,7 +475,7 @@ function renderWeekTasks() {
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6);
 
-    const weekTasks = tasks.filter(task => {
+    const weekTasks = tasksToRender.filter(task => {
         const taskDate = new Date(task.date + 'T00:00:00');
         return taskDate >= weekStart && taskDate <= weekEnd;
     }).sort((a, b) => a.date.localeCompare(b.date));
@@ -414,7 +487,10 @@ function renderWeekTasks() {
                     <div class="card-body">
                         <i class="bi bi-calendar-x" style="font-size: 3rem;"></i>
                         <p class="mt-3">Nenhuma tarefa para esta semana</p>
-                        <button class="btn btn-orange" onclick="abrirCalendarioTelaCheia()">
+                        <a href="#" onclick="navigateToPage('calendario')">
+                    <i class="bi bi-calendar3"></i>
+                    <span>Calendário</span>
+                </a>
                             Abrir Calendário
                         </button>
                     </div>
@@ -536,186 +612,112 @@ function renderExistingAttachments(attachments) {
     container.innerHTML = html;
 }
 
-// ===== FUNÇÕES DE CRUD DE TAREFAS =====
+// ========================================
+// FUNÇÕES DE CRUD DE TAREFAS
+// ========================================
 
 function addTask() {
     const title = document.getElementById('taskTitle').value;
     const type = document.getElementById('taskType').value;
     const date = document.getElementById('taskDate').value;
     const description = document.getElementById('taskDescription').value;
-    const fileInput = document.getElementById('taskFiles');
 
-    if (!title || !type || !date) {
-        alert('Por favor, preencha todos os campos obrigatórios.');
+    // ========================================
+    // VALIDAÇÕES DE SEGURANÇA
+    // ========================================
+    
+    // Validar entrada básica
+    const inputErrors = validateTaskInput(title, type, date, description);
+    if (inputErrors.length > 0) {
+        alert('Erros encontrados:\n' + inputErrors.join('\n'));
         return;
     }
 
-    // Coletar anexos
-    const attachments = {};
+    // Verificar autenticação ANTES de processar
+    const currentUser = firebase.auth()?.currentUser;
+    if (!currentUser) {
+        alert('Você precisa estar logado para criar tarefas');
+        return;
+    }
 
-    // Google Drive Links
+    // Verificar se o banco está disponível
+    if (!window.db) {
+        alert('Erro: Banco de dados não disponível');
+        return;
+    }
+
+    // ========================================
+    // COLETAR E VALIDAR ANEXOS
+    // ========================================
     const googleDriveInputs = document.querySelectorAll('input[name="googleDriveLink"]');
     const googleDriveLinks = Array.from(googleDriveInputs)
         .map(input => input.value.trim())
         .filter(link => link);
-    if (googleDriveLinks.length > 0) {
-        attachments.googleDriveLinks = googleDriveLinks;
-    }
 
-    // YouTube Links
     const youTubeInputs = document.querySelectorAll('input[name="youTubeLink"]');
     const youTubeLinks = Array.from(youTubeInputs)
         .map(input => input.value.trim())
         .filter(link => link);
+
+    // Validar URLs de forma segura
+    const urlErrors = validateUrls(googleDriveLinks, youTubeLinks);
+    if (urlErrors.length > 0) {
+        alert('Erros nos links:\n' + urlErrors.join('\n'));
+        return;
+    }
+
+    // ========================================
+    // CRIAR OBJETO DA TAREFA (SANITIZADO)
+    // ========================================
+    const attachments = {};
+    if (googleDriveLinks.length > 0) {
+        attachments.googleDriveLinks = googleDriveLinks;
+    }
     if (youTubeLinks.length > 0) {
         attachments.youtubeLinks = youTubeLinks;
     }
 
-    const selectedFiles = fileInput && fileInput.files ? Array.from(fileInput.files) : [];
-
-    const currentUser = firebase.auth() && firebase.auth().currentUser ? firebase.auth().currentUser : null;
     const task = {
-        title: title.trim(),
-        type,
-        date,
-        description: description.trim(),
+        title: escapeHtml(title.trim()),
+        type: type, // Já validado na função validateTaskInput
+        date: date,
+        description: escapeHtml(description.trim()),
         attachments: Object.keys(attachments).length > 0 ? attachments : null,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        createdBy: currentUser ? (currentUser.displayName || currentUser.email || 'Usuário') : 'Usuário',
-        userId: currentUser ? currentUser.uid : null
+        createdBy: currentUser.displayName || currentUser.email || 'Usuário',
+        userId: currentUser.uid
     };
 
-    const saveTaskWithoutFiles = () => {
-        if (window.editingTaskId) {
-            if (window.db) {
-                window.db.collection('tasks').doc(window.editingTaskId).update(task)
-                    .then(() => {
-                        clearTaskForm();
-                        const modal = bootstrap.Modal.getInstance(document.getElementById('taskModal'));
-                        if (modal) modal.hide();
-                        window.editingTaskId = null;
-                        const addBtn = document.querySelector('#taskModal .btn-orange');
-                        if (addBtn) addBtn.textContent = 'Adicionar';
-                    })
-                    .catch((error) => {
-                        console.error('Erro ao editar tarefa:', error);
-                        alert('Erro ao editar tarefa. Tente novamente.');
-                    });
-            }
-        } else {
-            if (window.db) {
-                window.db.collection('tasks').add(task)
-                    .then(() => {
-                        clearTaskForm();
-                        const modal = bootstrap.Modal.getInstance(document.getElementById('taskModal'));
-                        if (modal) modal.hide();
-                    })
-                    .catch((error) => {
-                        console.error('Erro ao adicionar tarefa:', error);
-                        alert('Erro ao adicionar tarefa. Tente novamente.');
-                    });
-            }
-        }
-    };
+    // ========================================
+    // SALVAR TAREFA NO FIRESTORE (COM TRATAMENTO DE ERRO)
+    // ========================================
+    const operation = window.editingTaskId ? 
+        window.db.collection('tasks').doc(window.editingTaskId).update(task) :
+        window.db.collection('tasks').add(task);
 
-    const saveTaskWithFiles = async (taskId) => {
-        try {
-            const uploadedFiles = [];
-            const failedFiles = [];
-            
+    operation
+        .then(() => {
+            clearTaskForm();
+            const modal = bootstrap.Modal.getInstance(document.getElementById('taskModal'));
+            if (modal) modal.hide();
+            window.editingTaskId = null;
             const addBtn = document.querySelector('#taskModal .btn-orange');
-            const originalText = addBtn ? addBtn.textContent : '';
-            
-            for (let i = 0; i < selectedFiles.length; i++) {
-                const file = selectedFiles[i];
-                if (addBtn) addBtn.textContent = `Enviando ${i + 1}/${selectedFiles.length}... ${file.name}`;
-                
-                try {
-                    const uploadedFile = await processFileWithConversion(file, taskId);
-                    uploadedFiles.push(uploadedFile);
-                } catch (error) {
-                    console.error(`❌ Falha com ${file.name}:`, error);
-                    failedFiles.push({ name: file.name, size: file.size, error: error.message });
-                }
-            }
-            
-            if (uploadedFiles.length > 0) {
-                task.attachments = task.attachments || {};
-                task.attachments.files = uploadedFiles;
-                
-                await window.db.collection('tasks').doc(taskId).update({
-                    attachments: task.attachments
-                });
-            }
-            
-            if (addBtn) addBtn.textContent = originalText;
-            
-            let message = '';
-            if (uploadedFiles.length > 0) {
-                message += `✅ ${uploadedFiles.length} arquivo(s) enviado(s)!\n`;
-            }
-            if (failedFiles.length > 0) {
-                message += `\n❌ ${failedFiles.length} arquivo(s) muito grande(s):\n`;
-                failedFiles.forEach(file => {
-                    message += `• ${file.name} (${formatFileSize(file.size)})\n`;
-                });
-                message += `\n💡 Use Google Drive para estes arquivos.`;
-            }
-            
-            if (message) alert(message);
-            
-            clearTaskForm();
-            const modal = bootstrap.Modal.getInstance(document.getElementById('taskModal'));
-            if (modal) modal.hide();
-            
-        } catch (error) {
-            console.error('Erro ao processar arquivos:', error);
-            alert('Erro ao processar arquivos. Tarefa salva sem anexos.');
-            
-            clearTaskForm();
-            const modal = bootstrap.Modal.getInstance(document.getElementById('taskModal'));
-            if (modal) modal.hide();
-        }
-    };
-
-    if (selectedFiles.length === 0) {
-        saveTaskWithoutFiles();
-    } else {
-        if (window.editingTaskId) {
-            saveTaskWithFiles(window.editingTaskId);
-        } else {
-            if (window.db) {
-                window.db.collection('tasks').add(task)
-                    .then((docRef) => {
-                        saveTaskWithFiles(docRef.id);
-                    })
-                    .catch((error) => {
-                        console.error('Erro ao adicionar tarefa:', error);
-                        alert('Erro ao adicionar tarefa. Tente novamente.');
-                    });
-            }
-        }
-    }
+            if (addBtn) addBtn.textContent = 'Adicionar';
+        })
 }
 
+// ========================================
+// LIMPAR FORMULÁRIO DE TAREFA
+// ========================================
 function clearTaskForm() {
     document.getElementById('taskForm').reset();
     
-    const filesPreview = document.getElementById('filesPreview');
-    if (filesPreview) filesPreview.innerHTML = '';
-    
-    const fileInput = document.getElementById('taskFiles');
-    if (fileInput) {
-        fileInput.value = '';
-        fileInput.files = new DataTransfer().files;
-        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-    
+    // Limpar containers de links extras
     const googleDriveContainer = document.getElementById('googleDriveContainer');
     if (googleDriveContainer) {
         const extraFields = googleDriveContainer.querySelectorAll('.input-group:not(:first-child)');
         extraFields.forEach(field => field.remove());
-        
+        // Limpar o primeiro campo também
         const firstInput = googleDriveContainer.querySelector('input[name="googleDriveLink"]');
         if (firstInput) firstInput.value = '';
     }
@@ -724,7 +726,7 @@ function clearTaskForm() {
     if (youTubeContainer) {
         const extraFields = youTubeContainer.querySelectorAll('.input-group:not(:first-child)');
         extraFields.forEach(field => field.remove());
-        
+        // Limpar o primeiro campo também
         const firstInput = youTubeContainer.querySelector('input[name="youTubeLink"]');
         if (firstInput) firstInput.value = '';
     }
@@ -751,19 +753,12 @@ function clearNewAttachmentsForm() {
         if (firstInput) firstInput.value = '';
     }
     
-    const newFileInput = document.getElementById('newTaskFiles');
-    if (newFileInput) {
-        newFileInput.value = '';
-        newFileInput.files = new DataTransfer().files;
-        newFileInput.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-    
-    const newFilesPreview = document.getElementById('newFilesPreview');
-    if (newFilesPreview) newFilesPreview.innerHTML = '';
-    
     console.log('✅ Formulário de novos anexos limpo');
 }
 
+// ========================================
+// ADICIONAR NOVOS ANEXOS (APENAS LINKS)
+// ========================================
 async function addNewAttachments() {
     if (!currentViewingTask) return;
 
@@ -772,25 +767,53 @@ async function addNewAttachments() {
         if (!addBtn) return;
         
         const originalText = addBtn.textContent;
+        addBtn.textContent = 'Adicionando...';
         
+        // Coletar novos links do Google Drive
         const newGoogleDriveInputs = document.querySelectorAll('input[name="newGoogleDriveLink"]');
         const newGoogleDriveLinks = Array.from(newGoogleDriveInputs)
             .map(input => input.value.trim())
             .filter(link => link);
 
+        // Coletar novos links do YouTube
         const newYouTubeInputs = document.querySelectorAll('input[name="newYouTubeLink"]');
         const newYouTubeLinks = Array.from(newYouTubeInputs)
             .map(input => input.value.trim())
             .filter(link => link);
-        
-        const newFileInput = document.getElementById('newTaskFiles');
-        const newFiles = newFileInput ? Array.from(newFileInput.files) : [];
 
-        if (newGoogleDriveLinks.length === 0 && newYouTubeLinks.length === 0 && newFiles.length === 0) {
-            alert('Selecione pelo menos um link ou arquivo para adicionar.');
+        // ========================================
+        // VALIDAR URLs DE FORMA SEGURA
+        // ========================================
+        const urlErrors = validateUrls(newGoogleDriveLinks, newYouTubeLinks);
+        if (urlErrors.length > 0) {
+            alert('Erros nos links:\n' + urlErrors.join('\n'));
+            addBtn.textContent = originalText;
             return;
         }
 
+        // Verificar se há pelo menos um link para adicionar
+        if (newGoogleDriveLinks.length === 0 && newYouTubeLinks.length === 0) {
+            alert('Por favor, adicione pelo menos um link');
+            addBtn.textContent = originalText;
+            return;
+        }
+
+        // Verificar autenticação
+        const currentUser = firebase.auth()?.currentUser;
+        if (!currentUser) {
+            alert('Você precisa estar logado para adicionar anexos');
+            addBtn.textContent = originalText;
+            return;
+        }
+
+        if (newGoogleDriveLinks.length === 0 && newYouTubeLinks.length === 0) {
+            alert('Adicione pelo menos um link para continuar.');
+            return;
+        }
+
+        addBtn.textContent = 'Salvando...';
+
+        // Atualizar anexos existentes
         const currentAttachments = currentViewingTask.attachments || {};
         
         if (newGoogleDriveLinks.length > 0) {
@@ -803,67 +826,42 @@ async function addNewAttachments() {
             currentAttachments.youtubeLinks = [...existingYouTubeLinks, ...newYouTubeLinks];
         }
 
-        const existingFiles = currentAttachments.files || [];
-        const failedFiles = [];
-        
-        for (let i = 0; i < newFiles.length; i++) {
-            const file = newFiles[i];
-            addBtn.textContent = `Processando ${i + 1}/${newFiles.length}... ${file.name}`;
-            
-            try {
-                const uploadedFile = await processFileWithConversion(file, currentViewingTask.id);
-                existingFiles.push(uploadedFile);
-            } catch (error) {
-                console.error(`❌ Falha com ${file.name}:`, error);
-                failedFiles.push({ name: file.name, size: file.size, error: error.message });
-            }
-        }
-        
-        currentAttachments.files = existingFiles;
-        addBtn.textContent = 'Salvando...';
-
+        // Salvar no Firestore
         if (window.db) {
             await window.db.collection('tasks').doc(currentViewingTask.id).update({
                 attachments: currentAttachments
             });
 
+            // Atualizar cache local
             const taskIndex = tasks.findIndex(t => t.id === currentViewingTask.id);
             if (taskIndex !== -1) {
                 tasks[taskIndex].attachments = currentAttachments;
                 currentViewingTask.attachments = currentAttachments;
             }
 
+            // Atualizar interface
             renderExistingAttachments(currentAttachments);
             clearNewAttachmentsForm();
             hideAddAttachmentsSection();
             loadTasks();
 
-            let message = '';
-            const successCount = newFiles.length - failedFiles.length;
-            
-            if (successCount > 0) {
-                message += `✅ ${successCount} arquivo(s) adicionado(s) com sucesso!\n`;
-            }
-            
-            if (failedFiles.length > 0) {
-                message += `\n❌ ${failedFiles.length} arquivo(s) muito grande(s):\n`;
-                failedFiles.forEach(file => {
-                    message += `• ${file.name} (${formatFileSize(file.size)})\n`;
-                });
-                message += `\n💡 Use Google Drive para estes arquivos.`;
-            }
-            
-            alert(message);
+            alert('✅ Links adicionados com sucesso!');
         }
 
         addBtn.textContent = originalText;
 
     } catch (error) {
-        console.error('Erro ao adicionar anexos:', error);
+        console.error('Erro ao adicionar novos anexos:', error);
         alert('Erro ao adicionar anexos. Tente novamente.');
+        
+        const addBtn = document.querySelector('#addAttachmentsSection .btn-success');
+        if (addBtn) addBtn.textContent = 'Adicionar Links';
     }
 }
 
+// ========================================
+// OCULTAR SEÇÃO DE ANEXOS
+// ========================================
 function hideAddAttachmentsSection() {
     const section = document.getElementById('addAttachmentsSection');
     if (section) {
@@ -873,9 +871,60 @@ function hideAddAttachmentsSection() {
 }
 
 function editTask(taskId) {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
+    // ✅ VERIFICAR AUTENTICAÇÃO ANTES DE EDITAR
+    const currentUser = firebase.auth()?.currentUser;
+    if (!currentUser) {
+        alert('Você precisa estar logado para editar tarefas');
+        return;
+    }
 
+    // Primeiro, tentar encontrar a tarefa na memória (mês atual)
+    let task = tasks.find(t => t.id === taskId);
+    
+    if (!task) {
+        // Se não encontrou na memória, buscar no Firestore
+        console.log('🔍 Tarefa não encontrada na memória, buscando no Firestore...');
+        
+        if (!window.db) {
+            alert('Erro: Banco de dados não disponível');
+            return;
+        }
+        
+        window.db.collection('tasks').doc(taskId).get()
+            .then((doc) => {
+                if (!doc.exists) {
+                    alert('Tarefa não encontrada');
+                    return;
+                }
+                
+                const taskData = doc.data();
+                
+                // ✅ VERIFICAR SE A TAREFA PERTENCE AO USUÁRIO ATUAL
+                if (taskData.userId !== currentUser.uid) {
+                    alert('Você não tem permissão para editar esta tarefa');
+                    return;
+                }
+                
+                task = { id: doc.id, ...taskData };
+                populateEditForm(task);
+            })
+            .catch((error) => {
+                console.error('Erro ao buscar tarefa:', error);
+                alert('Erro ao carregar tarefa');
+            });
+        return;
+    }
+
+    // ✅ VERIFICAR SE A TAREFA PERTENCE AO USUÁRIO ATUAL
+    if (task.userId !== currentUser.uid) {
+        alert('Você não tem permissão para editar esta tarefa');
+        return;
+    }
+
+    populateEditForm(task);
+}
+
+function populateEditForm(task) {
     // Limpar o formulário antes de preencher com os dados da tarefa
     clearTaskForm();
 
@@ -937,7 +986,7 @@ function editTask(taskId) {
         });
     }
 
-    window.editingTaskId = taskId;
+    window.editingTaskId = task.id;
     const addBtn = document.querySelector('#taskModal .btn-orange');
     if (addBtn) addBtn.textContent = 'Salvar Alterações';
 
@@ -946,20 +995,71 @@ function editTask(taskId) {
 }
 
 function deleteTask(taskId) {
+    // ✅ VERIFICAR AUTENTICAÇÃO ANTES DE DELETAR
+    const currentUser = firebase.auth()?.currentUser;
+    if (!currentUser) {
+        alert('Você precisa estar logado para deletar tarefas');
+        return;
+    }
+
+    // Primeiro, tentar encontrar a tarefa na memória (mês atual)
+    let task = tasks.find(t => t.id === taskId);
+    
+    if (!task) {
+        // Se não encontrou na memória, buscar no Firestore
+        console.log('🔍 Tarefa não encontrada na memória, buscando no Firestore para deletar...');
+        
+        if (!window.db) {
+            alert('Erro: Banco de dados não disponível');
+            return;
+        }
+        
+        window.db.collection('tasks').doc(taskId).get()
+            .then((doc) => {
+                if (!doc.exists) {
+                    alert('Tarefa não encontrada');
+                    return;
+                }
+                
+                const taskData = doc.data();
+                
+                // ✅ VERIFICAR SE A TAREFA PERTENCE AO USUÁRIO ATUAL
+                if (taskData.userId !== currentUser.uid) {
+                    alert('Você não tem permissão para deletar esta tarefa');
+                    return;
+                }
+                
+                // Confirmar deleção
+                if (!confirm('Tem certeza que deseja excluir esta tarefa?')) return;
+                
+                // Deletar do Firestore
+                window.db.collection('tasks').doc(taskId).delete()
+                    .then(() => {
+                        console.log('✅ Tarefa deletada com sucesso');
+                        // Recarregar tarefas se necessário
+                        loadTasks();
+                    })
+                    .catch((error) => {
+                        console.error('Erro ao deletar tarefa:', error);
+                        alert('Erro ao deletar tarefa');
+                    });
+            })
+            .catch((error) => {
+                console.error('Erro ao buscar tarefa:', error);
+                alert('Erro ao carregar tarefa');
+            });
+        return;
+    }
+
+    // ✅ VERIFICAR SE A TAREFA PERTENCE AO USUÁRIO ATUAL
+    if (task.userId !== currentUser.uid) {
+        alert('Você não tem permissão para deletar esta tarefa');
+        return;
+    }
+
     if (!confirm('Tem certeza que deseja excluir esta tarefa?')) return;
 
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    if (task.attachments?.files) {
-        task.attachments.files.forEach(async (file) => {
-            try {
-                await deleteFromGitHub(file.path, file.sha);
-            } catch (error) {
-                console.warn(`Erro ao deletar ${file.name}:`, error);
-            }
-        });
-    }
+    // ✅ FUNCIONALIDADE DE UPLOAD REMOVIDA - SEM GITHUB
 
     if (window.db) {
         window.db.collection('tasks').doc(taskId).delete()
@@ -974,9 +1074,48 @@ function deleteTask(taskId) {
 }
 
 function showTaskDetails(taskId) {
-    const task = tasks.find(t => t.id === taskId);
-    if (!task) return;
+    // Primeiro, tentar encontrar a tarefa na memória (mês atual)
+    let task = tasks.find(t => t.id === taskId);
+    
+    if (!task) {
+        // Se não encontrou na memória, buscar no Firestore
+        console.log('🔍 Tarefa não encontrada na memória, buscando no Firestore para visualizar...');
+        
+        if (!window.db) {
+            alert('Erro: Banco de dados não disponível');
+            return;
+        }
+        
+        window.db.collection('tasks').doc(taskId).get()
+            .then((doc) => {
+                if (!doc.exists) {
+                    alert('Tarefa não encontrada');
+                    return;
+                }
+                
+                const taskData = doc.data();
+                
+                // ✅ VERIFICAR SE A TAREFA PERTENCE AO USUÁRIO ATUAL
+                const currentUser = firebase.auth()?.currentUser;
+                if (taskData.userId !== currentUser?.uid) {
+                    alert('Você não tem permissão para visualizar esta tarefa');
+                    return;
+                }
+                
+                task = { id: doc.id, ...taskData };
+                displayTaskDetails(task);
+            })
+            .catch((error) => {
+                console.error('Erro ao buscar tarefa:', error);
+                alert('Erro ao carregar tarefa');
+            });
+        return;
+    }
 
+    displayTaskDetails(task);
+}
+
+function displayTaskDetails(task) {
     currentViewingTask = task;
 
     document.getElementById('taskDetailsTitle').textContent = task.title;

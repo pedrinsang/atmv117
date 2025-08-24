@@ -1,37 +1,61 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <!-- ========================================
+         CONFIGURAÇÕES BÁSICAS DA PÁGINA
+    ======================================== -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Organizador de Tarefas - Turma ATMV 117</title>
     
-    <!-- Bootstrap CSS -->
+    <!-- ========================================
+         BIBLIOTECAS EXTERNAS CSS
+    ======================================== -->
+    <!-- Bootstrap CSS Framework -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     
-    <!-- Custom CSS -->
+    <!-- ========================================
+         ESTILOS CUSTOMIZADOS
+    ======================================== -->
+    <!-- Estilos principais da aplicação -->
     <link rel="stylesheet" href="src/css/styles.css?v=1749688002735.0.0">
+    <!-- Estilos específicos de autenticação -->
     <link rel="stylesheet" href="src/css/auth-styles.css">
     
-    <!-- PWA Manifest -->
+    <!-- ========================================
+         CONFIGURAÇÕES PWA (Progressive Web App)
+    ======================================== -->
+    <!-- Manifest da aplicação -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#ff6b35">
     
-    <!-- iOS PWA -->
+    <!-- ========================================
+         CONFIGURAÇÕES PARA iOS
+    ======================================== -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Organizador Tarefas">
     
-    <!-- Favicon and Apple Touch Icon -->
+    <!-- ========================================
+         ÍCONES E FAVICONS
+    ======================================== -->
     <link rel="icon" type="image/png" sizes="192x192" href="src/img/icon-192.png">
     <link rel="apple-touch-icon" href="src/img/icon-192.png">
 
-    <!-- Evita cache do navegador -->
+    <!-- ========================================
+         CONFIGURAÇÕES DE CACHE
+    ======================================== -->
+    <!-- Evita cache do navegador para desenvolvimento -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
-    <!-- CSP Atualizado para Bootstrap e endpoints Firebase -->
+    <!-- ========================================
+         POLÍTICA DE SEGURANÇA DE CONTEÚDO
+    ======================================== -->
+    <!-- CSP para controle de recursos externos -->
     <meta http-equiv="Content-Security-Policy" content="
         default-src 'self'; 
         script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://cdn.jsdelivr.net; 
@@ -42,7 +66,9 @@
     ">
 </head>
 <body>
-    <!-- Sidebar -->
+    <!-- ========================================
+         BARRA LATERAL DE NAVEGAÇÃO
+    ======================================== -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <h5>ATMV 117</h5>
@@ -51,18 +77,21 @@
             </button>
         </div>
         <ul class="sidebar-menu">
+            <!-- Menu: Lista de Tarefas -->
             <li class="menu-item active" data-page="lista">
                 <a href="#" onclick="navigateToPage('lista')">
                     <i class="bi bi-list-task"></i>
                     <span>Lista</span>
                 </a>
             </li>
+            <!-- Menu: Calendário -->
             <li class="menu-item" data-page="calendario">
                 <a href="#" onclick="navigateToPage('calendario')">
                     <i class="bi bi-calendar3"></i>
                     <span>Calendário</span>
                 </a>
             </li>
+            <!-- Menu: Dados da Turma -->
             <li class="menu-item" data-page="dados">
                 <a href="#" onclick="navigateToPage('dados')">
                     <i class="bi bi-people"></i>
@@ -72,24 +101,29 @@
         </ul>
     </div>
 
-    <!-- Sidebar Overlay -->
+    <!-- ========================================
+         OVERLAY DA BARRA LATERAL
+    ======================================== -->
     <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
-    <!-- Header -->
+    <!-- ========================================
+         CABEÇALHO PRINCIPAL
+    ======================================== -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-orange">
         <div class="container">
-            <!-- Menu Toggle Button -->
+            <!-- Botão de menu hambúrguer -->
             <button class="btn btn-outline-light me-2" onclick="toggleSidebar()" id="menuToggle">
                 <i class="bi bi-list"></i>
             </button>
             
+            <!-- Logo da aplicação -->
             <a class="navbar-brand fw-bold" href="#">
                 <i class="bi bi-calendar-check brand-icon me-2" aria-hidden="true"></i>
                 <span class="brand-text">ATMV 117</span>
             </a>
             
             <div class="d-flex align-items-center ms-auto">
-                <!-- User Info -->
+                <!-- Informações do usuário logado -->
                 <div class="dropdown me-2" id="userDropdown" style="display: none;">
                     <button class="btn btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown">
                         <i class="bi bi-person-circle me-1"></i>
@@ -223,7 +257,7 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="taskForm">
+                    <form id="taskForm" style="color: black;">
                         <div class="mb-3">
                             <label for="taskTitle" class="form-label">Título</label>
                             <input type="text" class="form-control" id="taskTitle" required>
@@ -282,23 +316,6 @@
                                             </button>
                                         </div>
                                     </div>
-                                </div>
-                                
-                                <!-- Arquivos -->
-                                <div class="mb-3">
-                                    <label for="taskFiles" class="form-label small">
-                                        <i class="bi bi-file-earmark text-info"></i> Arquivos (PDF, PowerPoint, Word, etc.)
-                                    </label>
-                                    <input type="file" class="form-control form-control-sm" id="taskFiles" 
-                                           accept=".pdf,.ppt,.pptx,.doc,.docx,.txt,.jpg,.jpeg,.png" 
-                                           multiple>
-                                    <small class="text-muted">
-                                        📁 <strong>Máximo 25MB por arquivo</strong> | 
-                                        🔗 <strong>Arquivos maiores</strong>: use Google Drive
-                                    </small>
-                                    
-                                    <!-- Preview dos arquivos selecionados -->
-                                    <div id="filesPreview" class="mt-2"></div>
                                 </div>
                             </div>
                         </div>
@@ -444,25 +461,10 @@
                                 </div>
                             </div>
 
-                            <!-- Novos Arquivos -->
-                            <div class="mb-3">
-                                <label for="newTaskFiles" class="form-label small">
-                                    <i class="bi bi-file-earmark text-info"></i> Novos Arquivos
-                                </label>
-                                <input type="file" class="form-control form-control-sm" id="newTaskFiles" 
-                                       accept=".pdf,.ppt,.pptx,.doc,.docx,.txt,.jpg,.jpeg,.png,.mp4,.avi,.zip,.rar" 
-                                       multiple>
-                                <small class="text-muted">
-                                    📁 <strong>Máximo 25MB por arquivo</strong> | 
-                                    🔗 <strong>Arquivos maiores</strong>: use Google Drive
-                                </small>
-                                <div id="newFilesPreview" class="mt-2"></div>
-                            </div>
-
                             <!-- Botões da Seção de Adicionar -->
                             <div class="d-flex gap-2">
                                 <button class="btn btn-success btn-sm" onclick="addNewAttachments()">
-                                    <i class="bi bi-upload"></i> Adicionar Anexos
+                                    <i class="bi bi-plus"></i> Adicionar Links
                                 </button>
                                 <button class="btn btn-secondary btn-sm" onclick="hideAddAttachmentsSection()">
                                     <i class="bi bi-x"></i> Cancelar
@@ -484,26 +486,49 @@
         </div>
     </div>
 
-    <!-- Firebase SDKs -->
+    <!-- ========================================
+         CARREGAMENTO DE SCRIPTS
+    ======================================== -->
+    
+    <!-- ========================================
+         FIREBASE SDKs
+    ======================================== -->
+    <!-- Firebase Core -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <!-- Firebase Authentication -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <!-- Firebase Firestore Database -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
-    <!-- Scripts da aplicação -->
-    <script src="src/js/firebase-config.js"></script>
-    <script src="src/js/route-protection.js"></script>
-    <script src="src/js/auth.js"></script>
-    <script src="src/js/main-auth.js"></script>
-    <script src="src/js/fileConverter.js"></script>
-    <script src="src/js/tasks.js"></script>
-    <script src="src/js/calendar.js"></script>
-    <script src="src/js/app.js"></script>
-    <script src="src/js/dados.js"></script>
+    <!-- ========================================
+         SCRIPTS DA APLICAÇÃO
+    ======================================== -->
+    <!-- Configuração do Firebase -->
+    <script src="src/js/lib/firebase-config.js"></script>
+    <!-- Proteção de rotas -->
+    <script src="src/js/lib/route-protection.js"></script>
+    <!-- Sistema de autenticação -->
+    <script src="src/js/lib/auth.js"></script>
+    <!-- Autenticação principal -->
+    <script src="src/js/lib/main-auth.js"></script>
+    <!-- Sistema de tarefas -->
+    <script src="src/js/lib/tasks.js"></script>
+    <!-- Sistema de calendário -->
+    <script src="src/js/lib/calendar.js"></script>
+    <!-- Aplicação principal -->
+    <script src="src/js/lib/app.js"></script>
+    <!-- Dados da turma -->
+    <script src="src/js/lib/dados.js"></script>
 
-    <!-- Bootstrap JS -->
+    <!-- ========================================
+         BIBLIOTECAS EXTERNAS JS
+    ======================================== -->
+    <!-- Bootstrap JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- Footer -->
+    <!-- ========================================
+         RODAPÉ DA APLICAÇÃO
+    ======================================== -->
     <footer class="bg-dark text-center text-light py-3 w-100">
         © 2025 Pedro Ruiz Sangoi. Todos os direitos reservados.
     </footer>

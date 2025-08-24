@@ -1,9 +1,20 @@
+// ========================================
+// SISTEMA DE CALENDÁRIO
+// ========================================
+
+// ========================================
+// VARIÁVEIS GLOBAIS DO CALENDÁRIO
+// ========================================
 let currentDate = new Date();
 let calendarTasks = {};
 
+// ========================================
+// INICIALIZAÇÃO DO CALENDÁRIO
+// ========================================
 function initializeCalendar() {
     const calendarModal = document.getElementById('calendarModal');
     if (calendarModal) {
+        // Evento quando modal do calendário é aberto
         calendarModal.addEventListener('shown.bs.modal', function() {
             // Só carregar o calendário se o usuário estiver autenticado
             if (firebase.auth().currentUser) {
@@ -20,15 +31,22 @@ function initializeCalendar() {
     }
 }
 
+// ========================================
+// CARREGAMENTO DO CALENDÁRIO
+// ========================================
 function loadCalendar() {
-    console.log('📅 loadCalendar() chamado');
+    console.log('📅 Função loadCalendar() chamada');
 
+    // Verificar se Firestore está disponível
     if (!window.db) {
         console.log('⏳ Firestore não disponível, aguardando...');
         setTimeout(loadCalendar, 1000);
         return;
     }
 
+    // ========================================
+    // VERIFICAÇÃO DE AUTENTICAÇÃO
+    // ========================================
     // Verificar se o usuário está autenticado antes de acessar o Firestore
     const currentUser = firebase.auth().currentUser;
     console.log('👤 Estado de autenticação atual:', currentUser ? `Logado: ${currentUser.email}` : 'Não logado');
@@ -45,6 +63,7 @@ function loadCalendar() {
         return;
     }
 
+    // Carrega os dados do calendário
     loadCalendarData();
 }
 
