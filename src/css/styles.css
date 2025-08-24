@@ -125,11 +125,11 @@ footer {
 }
 
 .task-type-trabalho {
-    border-left-color: #fd7e14;
+    border-left-color: #20c997;
 }
 
 .task-type-atividade {
-    border-left-color: #20c997;
+    border-left-color: #fd7e14;
 }
 
 /* Floating Action Button */

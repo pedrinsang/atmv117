@@ -1,32 +1,53 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <!-- ========================================
+         CONFIGURAÇÕES BÁSICAS DA PÁGINA ADMIN
+    ======================================== -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Painel Admin - Organizador de Tarefas ATMV 117</title>
     
-    <!-- Bootstrap CSS -->
+    <!-- ========================================
+         BIBLIOTECAS EXTERNAS CSS
+    ======================================== -->
+    <!-- Bootstrap CSS Framework -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     
-    <!-- Custom CSS -->
+    <!-- ========================================
+         ESTILOS CUSTOMIZADOS
+    ======================================== -->
+    <!-- Estilos principais da aplicação -->
     <link rel="stylesheet" href="src/css/styles.css?v=1749688002735.0.0">
+    <!-- Estilos específicos de autenticação -->
     <link rel="stylesheet" href="src/css/auth-styles.css">
     
-    <!-- PWA Manifest -->
+    <!-- ========================================
+         CONFIGURAÇÕES PWA
+    ======================================== -->
+    <!-- Manifest da aplicação -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#ff6b35">
     
-    <!-- Favicon -->
+    <!-- ========================================
+         ÍCONES E FAVICONS
+    ======================================== -->
     <link rel="icon" type="image/png" sizes="192x192" href="src/img/icon-192.png">
 
+    <!-- ========================================
+         ESTILOS ESPECÍFICOS DO PAINEL ADMIN
+    ======================================== -->
     <style>
+        /* Cabeçalho administrativo com gradiente vermelho */
         .admin-header {
             background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
             color: white;
             padding: 20px 0;
         }
         
+        /* Animação para cards de usuário */
         .user-card {
             transition: transform 0.2s;
         }
@@ -35,16 +56,19 @@
             transform: translateY(-2px);
         }
         
+        /* Badge de função do usuário */
         .role-badge {
             font-size: 0.75rem;
         }
         
+        /* Cards de estatísticas com gradiente laranja */
         .stats-card {
             background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
             color: white;
             border-radius: 15px;
         }
         
+        /* Botões de alteração de função */
         .btn-role-toggle {
             font-size: 0.8rem;
         }
@@ -351,11 +375,11 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <!-- Firebase Config -->
-    <script src="src/js/firebase-config.js"></script>
-    <script src="src/js/route-protection.js"></script>
-    <script src="src/js/auth.js"></script>
+    <script src="src/js/lib/firebase-config.js"></script>
+    <script src="src/js/lib/route-protection.js"></script>
+    <script src="src/js/lib/auth.js"></script>
     
     <!-- Admin Script -->
-    <script src="src/js/admin.js"></script>
+    <script src="src/js/pages/admin.js"></script>
 </body>
 </html>
