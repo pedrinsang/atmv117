@@ -719,6 +719,64 @@ footer {
     width: 20px;
 }
 
+/* Submenu Styles */
+.menu-item.has-submenu > a {
+    position: relative;
+}
+
+.submenu-arrow {
+    margin-left: auto !important;
+    margin-right: 0 !important;
+    transition: transform 0.3s ease;
+    font-size: 0.8rem !important;
+    width: auto !important;
+}
+
+.menu-item.has-submenu.open > a .submenu-arrow {
+    transform: rotate(180deg);
+}
+
+.submenu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    background: rgba(0, 0, 0, 0.3);
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.menu-item.has-submenu.open .submenu {
+    max-height: 200px;
+}
+
+.submenu-item {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.submenu-item:last-child {
+    border-bottom: none;
+}
+
+.submenu-item a {
+    padding: 0.8rem 1.5rem 0.8rem 3rem;
+    font-size: 0.9rem;
+    background: transparent;
+}
+
+.submenu-item a:hover {
+    background: rgba(255, 107, 53, 0.15);
+    color: var(--orange-primary);
+}
+
+.submenu-item.active a {
+    background: rgba(255, 107, 53, 0.2);
+    color: var(--orange-primary);
+    border-left: 3px solid var(--orange-primary);
+}
+
+/* birthday styles moved to task-dot.aniversario and generic has-birthday/has-task classes */
+
 .sidebar-overlay {
     position: fixed;
     top: 0;
@@ -924,6 +982,21 @@ footer {
     background: rgba(255,107,53,0.04);
 }
 
+/* when a day has birthdays, show a subtle blue outline and translucent blue background */
+#calendarioPage .calendar-day.has-birthday {
+    box-shadow: 0 0 0 2px rgba(13,110,253,0.12) inset, 0 0 0 1px rgba(13,110,253,0.08) !important;
+    background: rgba(13,110,253,0.06) !important;
+}
+
+/* Ensure birthday styling wins over other specific type classes */
+#calendarioPage .calendar-day.has-birthday.has-atividade,
+#calendarioPage .calendar-day.has-birthday.has-prova,
+#calendarioPage .calendar-day.has-birthday.has-trabalho,
+#calendarioPage .calendar-day.has-birthday.has-multi {
+    background: rgba(13,110,253,0.06) !important;
+    box-shadow: 0 0 0 2px rgba(13,110,253,0.12) inset, 0 0 0 1px rgba(13,110,253,0.08) !important;
+}
+
 /* container for small colored dots in the corner */
 .task-dots {
     position: absolute;
@@ -948,10 +1021,20 @@ footer {
 .task-dot.prova { background: #dc3545; } /* red */
 .task-dot.atividade { background: #ffc107; } /* yellow */
 .task-dot.other { background: #6c757d; }
+/* birthday (aniversário) dot - blue */
+.task-dot.aniversario { background: #0d6efd; }
 
 /* legend for calendar types */
 .calendar-legend {
     color: var(--text-light);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
 }
 .calendar-legend .legend-dot {
     width: 12px;
@@ -963,6 +1046,30 @@ footer {
 .calendar-legend .legend-dot.trabalho { background: #20c997; }
 .calendar-legend .legend-dot.prova { background: #dc3545; }
 .calendar-legend .legend-dot.atividade { background: #ffc107; }
+.calendar-legend .legend-dot.aniversario { background: #0d6efd; }
+
+/* Ensure legend items fit on very small screens: reduce dot size, gaps and font but keep labels visible */
+@media (max-width: 360px) {
+    .calendar-legend {
+        gap: 6px;
+        padding-left: 4px;
+        padding-right: 4px;
+        font-size: 0.75rem;
+    }
+    .calendar-legend .legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .calendar-legend .legend-dot {
+        width: 10px;
+        height: 10px;
+        margin-right: 4px;
+    }
+    .calendar-legend .legend-item small {
+        white-space: nowrap;
+    }
+}
 
 /* Responsive adjustments for calendar page */
 @media (max-width: 768px) {
@@ -1163,6 +1270,16 @@ footer {
     /* Make menu button more prominent on mobile */
     #menuToggle {
         margin-right: 0.5rem !important;
+    }
+    
+    /* Mobile submenu adjustments */
+    .menu-item.has-submenu.open .submenu {
+        max-height: 250px;
+    }
+    
+    .submenu-item a {
+        padding: 0.8rem 1.5rem 0.8rem 2.5rem;
+        font-size: 0.85rem;
     }
 }
 

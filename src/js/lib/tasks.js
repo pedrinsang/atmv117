@@ -619,7 +619,16 @@ function renderExistingAttachments(attachments) {
 function addTask() {
     const title = document.getElementById('taskTitle').value;
     const type = document.getElementById('taskType').value;
-    const date = document.getElementById('taskDate').value;
+    let date = document.getElementById('taskDate').value;
+    // If user sees dd/mm/yyyy (flatpickr altInput) or manual input in dd/mm/yyyy, convert to ISO YYYY-MM-DD
+    const ddmmyyyy = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+    const isoRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (ddmmyyyy.test(date)) {
+        const m = date.match(ddmmyyyy);
+        date = `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+    } else if (!isoRegex.test(date)) {
+        // if input is empty or an unexpected format, leave as-is and let validation handle it
+    }
     const description = document.getElementById('taskDescription').value;
 
     // ========================================

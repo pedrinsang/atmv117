@@ -165,7 +165,13 @@ function renderCalendar() {
 
         const dateString = date.toISOString().split('T')[0];
         const isCurrentMonth = date.getMonth() === month;
-        const isToday = date.toDateString() === currentDateObj.toDateString();
+        
+        // Fix timezone issue - create date in local timezone
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const calendarDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        const isToday = calendarDate.getTime() === today.getTime();
+        
         const tasksOfDay = calendarTasks[dateString] || [];
 
         // Conta quantos de cada tipo
@@ -175,9 +181,18 @@ function renderCalendar() {
         const hasMulti = [hasProva, hasTrabalho, hasAtividade].filter(Boolean).length > 1;
 
         let dots = '';
-        if (hasProva) dots += `<span class="task-dot bg-danger"></span>`;
-        if (hasTrabalho) dots += `<span class="task-dot bg-warning"></span>`;
-        if (hasAtividade) dots += `<span class="task-dot bg-success"></span>`;
+        if (hasProva) dots += `<span class="task-dot prova"></span>`;
+        if (hasTrabalho) dots += `<span class="task-dot trabalho"></span>`;
+        if (hasAtividade) dots += `<span class="task-dot atividade"></span>`;
+
+        // Check for birthdays on this date and add a blue birthday dot
+        if (typeof getBirthdaysForDate === 'function') {
+            const dayBirthdays = getBirthdaysForDate(date);
+            if (dayBirthdays.length > 0) {
+                dots += `<span class="task-dot aniversario" title="Aniversário${dayBirthdays.length > 1 ? 's' : ''}: ${dayBirthdays.map(b => b.name).join(', ')}"></span>`;
+                dayClass += ' has-birthday has-task';
+            }
+        }
 
         let dayClass = 'calendar-day';
         if (!isCurrentMonth) dayClass += ' text-muted';
@@ -195,7 +210,7 @@ function renderCalendar() {
             <div class="calendar-dots mt-1">${dots}</div>
         `;
 
-        if (tasksOfDay.length > 0) {
+        if (tasksOfDay.length > 0 || birthdayIndicator) {
             dayElement.style.cursor = 'pointer';
             dayElement.addEventListener('click', () => abrirModalTarefasDoDia(dateString, tasksOfDay));
         }
@@ -232,7 +247,16 @@ function selectDate(date, element) {
     const dateString = date.toISOString().split('T')[0];
     const taskDateInput = document.getElementById('taskDate');
     if (taskDateInput) {
-        taskDateInput.value = dateString;
+        try {
+            // If flatpickr is used, setDate will populate altInput correctly
+            if (taskDateInput._flatpickr && typeof taskDateInput._flatpickr.setDate === 'function') {
+                taskDateInput._flatpickr.setDate(dateString, true);
+            } else {
+                taskDateInput.value = dateString;
+            }
+        } catch (e) {
+            taskDateInput.value = dateString;
+        }
     }
 
     const calendarModal = bootstrap.Modal.getInstance(document.getElementById('calendarModal'));
@@ -309,26 +333,56 @@ function abrirModalTarefasDoDia(dateString, tasksOfDay) {
     const modalBody = document.getElementById('dayTasksModalBody');
     if (!modalBody) return;
 
-    if (tasksOfDay.length === 0) {
-        modalBody.innerHTML = '<p class="text-muted">Nenhuma tarefa para este dia.</p>';
+    let content = '';
+    
+    // Check for birthdays on this date
+    if (typeof getBirthdaysForDate === 'function') {
+        const date = new Date(dateString + 'T00:00:00');
+        const dayBirthdays = getBirthdaysForDate(date);
+        
+        if (dayBirthdays.length > 0) {
+                content += '<h6 class="mb-2"><span class="legend-dot aniversario me-2" style="vertical-align:middle;"></span>Aniversários</h6>';
+                dayBirthdays.forEach(birthday => {
+                    content += `
+                        <div class="mb-2 p-2 rounded border-start border-4 border-info bg-light">
+                            <div class="fw-bold text-dark">${escapeHtml(birthday.name)}</div>
+                            <div class="small text-muted">🎉 Aniversário</div>
+                        </div>
+                    `;
+            });
+            
+            if (tasksOfDay.length > 0) {
+                content += '<hr class="my-3">';
+            }
+        }
+    }
+
+    if (tasksOfDay.length === 0 && !content) {
+        modalBody.innerHTML = '<p class="text-muted">Nenhuma tarefa ou aniversário para este dia.</p>';
     } else {
-        modalBody.innerHTML = tasksOfDay.map(task => `
-            <div class="mb-2 p-2 rounded border-start border-4 border-${getTypeColor(task.type)} bg-light">
-                <div class="fw-bold text-dark">${escapeHtml(task.title)}</div>
-                <div class="small text-muted"><strong>${task.type.charAt(0).toUpperCase() + task.type.slice(1)}</strong></div>
-                <div class="small text-muted">${escapeHtml(task.description || '')}</div>
-                <div class="mt-2 d-flex justify-content-end">
-                    <div onclick="event.stopPropagation();">
-                                <button class="btn btn-sm btn-outline-primary me-1" onclick="openTaskEditorOverCalendar('${task.id}')">
-                                    <i class="bi bi-pencil"></i> Editar
-                                </button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="(function(){ const m = bootstrap.Modal.getInstance(document.getElementById('dayTasksModal')); if(m) m.hide(); setTimeout(function(){ deleteTask('${task.id}'); }, 300); })()">
-                            <i class="bi bi-trash"></i> Excluir
-                        </button>
+        if (tasksOfDay.length > 0) {
+            if (content) {
+                content += '<h6 class="text-orange mb-2"><i class="bi bi-list-task me-2"></i>Tarefas</h6>';
+            }
+            content += tasksOfDay.map(task => `
+                <div class="mb-2 p-2 rounded border-start border-4 border-${getTypeColor(task.type)} bg-light">
+                    <div class="fw-bold text-dark">${escapeHtml(task.title)}</div>
+                    <div class="small text-muted"><strong>${task.type.charAt(0).toUpperCase() + task.type.slice(1)}</strong></div>
+                    <div class="small text-muted">${escapeHtml(task.description || '')}</div>
+                    <div class="mt-2 d-flex justify-content-end">
+                        <div onclick="event.stopPropagation();">
+                                    <button class="btn btn-sm btn-outline-primary me-1" onclick="openTaskEditorOverCalendar('${task.id}')">
+                                        <i class="bi bi-pencil"></i> Editar
+                                    </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="(function(){ const m = bootstrap.Modal.getInstance(document.getElementById('dayTasksModal')); if(m) m.hide(); setTimeout(function(){ deleteTask('${task.id}'); }, 300); })()">
+                                <i class="bi bi-trash"></i> Excluir
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        `).join('');
+            `).join('');
+        }
+        modalBody.innerHTML = content;
     }
 
     const modal = new bootstrap.Modal(document.getElementById('dayTasksModal'));
