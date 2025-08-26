@@ -180,7 +180,23 @@ function initializeApp() {
     const today = new Date().toISOString().split('T')[0];
     const taskDateInput = document.getElementById('taskDate');
     if (taskDateInput) {
-        taskDateInput.setAttribute('min', today);
+        // If flatpickr available, init with altFormat for display and keep ISO in the input's value
+        try {
+            if (typeof flatpickr === 'function') {
+                if (taskDateInput._flatpickr) taskDateInput._flatpickr.destroy();
+                flatpickr(taskDateInput, {
+                    dateFormat: 'Y-m-d', // underlying value (ISO)
+                    altInput: true,
+                    altFormat: 'd/m/Y', // display format
+                    allowInput: true,
+                    minDate: today
+                });
+            } else {
+                taskDateInput.setAttribute('min', today);
+            }
+        } catch (e) {
+            taskDateInput.setAttribute('min', today);
+        }
     }
     
     const taskForm = document.getElementById('taskForm');
@@ -270,9 +286,28 @@ function navigateToPage(page) {
     const menuItems = document.querySelectorAll('.menu-item');
     menuItems.forEach(item => item.classList.remove('active'));
     
-    const activeMenuItem = document.querySelector(`[data-page="${page}"]`);
-    if (activeMenuItem) {
-        activeMenuItem.classList.add('active');
+    const submenuItems = document.querySelectorAll('.submenu-item');
+    submenuItems.forEach(item => item.classList.remove('active'));
+    
+    // Handle submenu items
+    if (['sugestoes', 'links', 'aniversarios'].includes(page)) {
+        // Open the parent submenu if it's closed
+        const parentMenu = document.querySelector('[data-page="dados"]');
+        if (parentMenu && !parentMenu.classList.contains('open')) {
+            toggleSubmenu('dados');
+        }
+        
+        // Set active submenu item
+        const activeSubmenuItem = document.querySelector(`[data-page="${page}"]`);
+        if (activeSubmenuItem && activeSubmenuItem.classList.contains('submenu-item')) {
+            activeSubmenuItem.classList.add('active');
+        }
+    } else {
+        // Regular menu item
+        const activeMenuItem = document.querySelector(`[data-page="${page}"]`);
+        if (activeMenuItem) {
+            activeMenuItem.classList.add('active');
+        }
     }
     
     // Close sidebar on mobile
@@ -286,6 +321,38 @@ function navigateToPage(page) {
         setTimeout(() => {
             initializeCalendarPage();
         }, 100);
+    } else if (page === 'aniversarios') {
+        // Initialize birthdays page
+        setTimeout(() => {
+            initializeBirthdaysPage();
+            // Force reload birthdays when page opens
+            if (window.db) {
+                loadBirthdays();
+                loadUpcomingBirthdays();
+            }
+        }, 100);
+    }
+
+    // Show the floating add-task button only on the "lista" and "calendario" pages
+    try {
+        const fab = document.getElementById('fabAddTask');
+        if (fab) {
+            if (['lista', 'calendario'].includes(page)) {
+                fab.style.display = '';
+            } else {
+                fab.style.display = 'none';
+            }
+        }
+    } catch (e) {
+        console.warn('Erro ao alternar visibilidade do FAB:', e);
+    }
+}
+
+// Toggle submenu function
+function toggleSubmenu(menuId) {
+    const menuItem = document.querySelector(`[data-page="${menuId}"]`);
+    if (menuItem && menuItem.classList.contains('has-submenu')) {
+        menuItem.classList.toggle('open');
     }
 }
 
@@ -319,6 +386,9 @@ function initializeCalendarPage() {
                     </div>
                     <div class="legend-item d-flex align-items-center gap-2">
                         <span class="legend-dot atividade"></span> <small>Atividade</small>
+                    </div>
+                    <div class="legend-item d-flex align-items-center gap-2">
+                        <span class="legend-dot aniversario"></span> <small>Aniversário</small>
                     </div>
                 </div>
             </div>
@@ -494,6 +564,16 @@ function renderPageCalendar() {
         const hasTasks = window.pageCalendarTasks && window.pageCalendarTasks[dateStr];
         const taskCount = hasTasks ? hasTasks.length : 0;
 
+        // check birthdays for this date
+        let hasBirthday = false;
+        try {
+            if (typeof getBirthdaysForDate === 'function') {
+                const d = new Date(prevYear, prevMonth, prevDay);
+                const b = getBirthdaysForDate(d);
+                if (b && b.length > 0) hasBirthday = true;
+            }
+        } catch (e) { /* ignore */ }
+
         // build dots for task types
         let dotsHTML = '';
         if (taskCount > 0) {
@@ -503,7 +583,7 @@ function renderPageCalendar() {
         }
 
         calendarHTML += `
-            <div class="calendar-day other-month ${taskCount>0? 'has-task':''}" onclick="showPageDayTasks('${dateStr}')">
+            <div class="calendar-day other-month ${taskCount>0? 'has-task':''} ${hasBirthday ? 'has-birthday has-task' : ''}" onclick="showPageDayTasks('${dateStr}')">
                 <span class="day-number">${prevDay}</span>
                 ${dotsHTML}
             </div>
@@ -531,6 +611,19 @@ function renderPageCalendar() {
             dotsHTML = `<div class="task-dots">${dots}</div>`;
         }
 
+        // include birthdays as blue dot
+        try {
+            if (typeof getBirthdaysForDate === 'function') {
+                const d = new Date(year, month, day);
+                const b = getBirthdaysForDate(d);
+                if (b && b.length > 0) {
+                    if (!dotsHTML) dotsHTML = '<div class="task-dots"></div>';
+                    dotsHTML = dotsHTML.replace('</div>', `<span class="task-dot aniversario" title="Aniversário${b.length>1? 's':''}: ${b.map(x=>x.name).join(', ')}"></span></div>`);
+                    dayClass += ' has-birthday has-task';
+                }
+            }
+        } catch (e) { /* ignore */ }
+
         calendarHTML += `
             <div class="${dayClass}" onclick="showPageDayTasks('${dateStr}')">
                 <span class="day-number">${day}</span>
@@ -550,6 +643,16 @@ function renderPageCalendar() {
         const hasTasks = window.pageCalendarTasks && window.pageCalendarTasks[dateStr];
         const taskCount = hasTasks ? hasTasks.length : 0;
 
+        // check birthdays for this next-month date
+        let hasBirthdayNext = false;
+        try {
+            if (typeof getBirthdaysForDate === 'function') {
+                const d2 = new Date(nextYear, nextMonth, day);
+                const b2 = getBirthdaysForDate(d2);
+                if (b2 && b2.length > 0) hasBirthdayNext = true;
+            }
+        } catch (e) { /* ignore */ }
+
         let dotsHTML = '';
         if (taskCount > 0) {
             const types = [...new Set(hasTasks.map(t => t.type || ''))].slice(0, 6);
@@ -558,7 +661,7 @@ function renderPageCalendar() {
         }
 
         calendarHTML += `
-            <div class="calendar-day other-month ${taskCount>0? 'has-task':''}" onclick="showPageDayTasks('${dateStr}')">
+            <div class="calendar-day other-month ${taskCount>0? 'has-task':''} ${hasBirthdayNext ? 'has-birthday has-task' : ''}" onclick="showPageDayTasks('${dateStr}')">
                 <span class="day-number">${day}</span>
                 ${dotsHTML}
             </div>
@@ -571,34 +674,10 @@ function renderPageCalendar() {
 
 // Show tasks for a specific day in page view
 function showPageDayTasks(dateStr) {
-    const tasks = window.pageCalendarTasks && window.pageCalendarTasks[dateStr];
-    if (!tasks || tasks.length === 0) {
-        // Show message for no tasks
-    const dayTasksModalEl = document.getElementById('dayTasksModal');
-    const modal = (dayTasksModalEl && window.bootstrap && bootstrap.Modal) ? new bootstrap.Modal(dayTasksModalEl) : null;
-    const modalTitle = document.querySelector('#dayTasksModal .modal-title');
-    const modalBody = document.getElementById('dayTasksModalBody');
-        
-        if (modalTitle && modalBody) {
-            const date = new Date(dateStr + 'T12:00:00');
-            const dateFormatted = date.toLocaleDateString('pt-BR', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-            });
-            
-            modalTitle.textContent = `Tarefas de ${dateFormatted}`;
-            modalBody.innerHTML = `
-                <div class="text-center text-muted py-4">
-                    <i class="bi bi-calendar-x" style="font-size: 3rem;"></i>
-                    <p class="mt-3">Nenhuma tarefa encontrada para este dia.</p>
-                </div>
-            `;
-            modal.show();
-        }
-        return;
-    }
+    // Always open the unified modal which shows birthdays and tasks for the day
+    const tasks = window.pageCalendarTasks && window.pageCalendarTasks[dateStr] ? window.pageCalendarTasks[dateStr] : [];
+    abrirModalTarefasDoDia(dateStr, tasks);
+    return;
     
     // Use existing day tasks modal
     const modalTitle = document.querySelector('#dayTasksModal .modal-title');
@@ -1103,9 +1182,433 @@ function createBlockedAccountModal(user, userData) {
     }, 100);
 }
 
+// Initialize birthdays page
+function initializeBirthdaysPage() {
+    loadBirthdays();
+    loadUpcomingBirthdays();
+    
+    // Add event listener for the add birthday button
+    const btnAddBirthday = document.getElementById('btnAddBirthday');
+    if (btnAddBirthday && !btnAddBirthday.hasAttribute('data-listener')) {
+        btnAddBirthday.setAttribute('data-listener', 'true');
+        btnAddBirthday.addEventListener('click', addBirthday);
+    }
+    
+    // Initialize date picker for Brazilian format (dd/mm/aaaa) using flatpickr if available
+    const birthdayDateInput = document.getElementById('birthdayDate');
+    if (birthdayDateInput) {
+        // If flatpickr is present, initialize with Brazilian format and allow selection via calendar
+        try {
+            if (typeof flatpickr === 'function') {
+                // If already initialized, destroy first
+                if (birthdayDateInput._flatpickr) {
+                    birthdayDateInput._flatpickr.destroy();
+                }
+                flatpickr(birthdayDateInput, {
+                    dateFormat: 'd/m/Y',
+                    altInput: false,
+                    allowInput: true,
+                    locale: 'default'
+                });
+            } else {
+                // Add mask for Brazilian date format when no flatpickr (or browser lacks native date input)
+                if (!birthdayDateInput.hasAttribute('data-mask-listener')) {
+                    birthdayDateInput.setAttribute('data-mask-listener', 'true');
+                    birthdayDateInput.addEventListener('input', function(e) {
+                        let value = e.target.value.replace(/\D/g, '');
+                        if (value.length >= 2) {
+                            value = value.substring(0, 2) + '/' + value.substring(2);
+                        }
+                        if (value.length >= 5) {
+                            value = value.substring(0, 5) + '/' + value.substring(5, 9);
+                        }
+                        e.target.value = value;
+                    });
+                }
+            }
+        } catch (e) {
+            // If any error occurs, fallback to simple mask
+            if (!birthdayDateInput.hasAttribute('data-mask-listener')) {
+                birthdayDateInput.setAttribute('data-mask-listener', 'true');
+                birthdayDateInput.addEventListener('input', function(e) {
+                    let value = e.target.value.replace(/\D/g, '');
+                    if (value.length >= 2) {
+                        value = value.substring(0, 2) + '/' + value.substring(2);
+                    }
+                    if (value.length >= 5) {
+                        value = value.substring(0, 5) + '/' + value.substring(5, 9);
+                    }
+                    e.target.value = value;
+                });
+            }
+        }
+    }
+}
+
+// Load all birthdays
+async function loadBirthdays() {
+    if (!window.db) return;
+    
+    try {
+        const snapshot = await window.db.collection('birthdays').orderBy('month').orderBy('day').get();
+        const birthdaysContainer = document.getElementById('allBirthdays');
+        if (!birthdaysContainer) return;
+        
+        birthdaysContainer.innerHTML = '';
+        
+        const months = [
+            'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+            'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+        ];
+        
+        if (snapshot.empty) {
+            birthdaysContainer.innerHTML = '<div class="col-12"><p class="text-muted">Nenhum aniversário cadastrado ainda.</p></div>';
+            return;
+        }
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            // Use the stored day and month directly (month is 0-indexed)
+            const day = data.day;
+            const month = data.month; // Already 0-indexed
+            
+            const card = document.createElement('div');
+            card.className = 'col-md-6 col-lg-4 mb-3';
+            card.innerHTML = `
+                <div class="card bg-secondary text-light">
+                    <div class="card-body">
+                        <h6 class="card-title text-orange">${escapeHtml(data.name)}</h6>
+                        <p class="card-text small">${day}/${(month + 1).toString().padStart(2, '0')}</p>
+                        <div class="d-flex justify-content-end">
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteBirthday('${doc.id}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            birthdaysContainer.appendChild(card);
+        });
+    } catch (error) {
+        console.error('Erro ao carregar aniversários:', error);
+    }
+}
+
+// Load upcoming birthdays
+async function loadUpcomingBirthdays() {
+    if (!window.db) return;
+    
+    try {
+        const snapshot = await window.db.collection('birthdays').get();
+        const upcomingContainer = document.getElementById('upcomingBirthdays');
+        if (!upcomingContainer) return;
+        
+        // Use Brazilian timezone (UTC-3)
+        const today = new Date();
+        const currentMonth = today.getMonth();
+        const currentDay = today.getDate();
+        
+        const upcoming = [];
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const month = data.month; // Already 0-indexed
+            const day = data.day;
+            
+            // Calculate days until birthday
+            let daysUntil;
+            if (month > currentMonth || (month === currentMonth && day >= currentDay)) {
+                const thisYear = new Date(today.getFullYear(), month, day);
+                daysUntil = Math.ceil((thisYear - today) / (1000 * 60 * 60 * 24));
+            } else {
+                const nextYear = new Date(today.getFullYear() + 1, month, day);
+                daysUntil = Math.ceil((nextYear - today) / (1000 * 60 * 60 * 24));
+            }
+            
+            if (daysUntil <= 30) { // Show birthdays in the next 30 days
+                upcoming.push({ ...data, daysUntil, month, day });
+            }
+        });
+        
+        upcoming.sort((a, b) => a.daysUntil - b.daysUntil);
+        
+        upcomingContainer.innerHTML = '';
+        
+        if (upcoming.length === 0) {
+            upcomingContainer.innerHTML = '<p class="text-muted small">Nenhum aniversário nos próximos 30 dias.</p>';
+            return;
+        }
+        
+        upcoming.forEach(birthday => {
+            const item = document.createElement('div');
+            item.className = 'mb-2 p-2 bg-secondary rounded';
+            const dayText = birthday.daysUntil === 0 ? 'Hoje!' : 
+                           birthday.daysUntil === 1 ? 'Amanhã' : 
+                           `Em ${birthday.daysUntil} dias`;
+            
+            item.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="fw-bold small">${escapeHtml(birthday.name)}</div>
+                        <div class="text-muted" style="font-size: 0.8rem;">${birthday.day}/${(birthday.month + 1).toString().padStart(2, '0')}</div>
+                    </div>
+                    <span class="badge bg-orange">${dayText}</span>
+                </div>
+            `;
+            upcomingContainer.appendChild(item);
+        });
+    } catch (error) {
+        console.error('Erro ao carregar próximos aniversários:', error);
+    }
+}
+
+// Add birthday function
+async function addBirthday() {
+    const nameInput = document.getElementById('birthdayName');
+    const dateInput = document.getElementById('birthdayDate');
+    
+    if (!nameInput || !dateInput) return;
+    
+    const name = nameInput.value.trim();
+    const dateStr = dateInput.value.trim();
+
+    if (!name || !dateStr) {
+        alert('Por favor, preencha o nome e a data.');
+        return;
+    }
+
+    // Support both native date input (YYYY-MM-DD) and DD/MM/YYYY
+    let dateObj = null;
+    let day = null;
+    let month = null; // 1-based month for intermediate validation
+    let year = null;
+
+    // ISO format from <input type="date"> (YYYY-MM-DD)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        const parts = dateStr.split('-');
+        year = parseInt(parts[0], 10);
+        month = parseInt(parts[1], 10);
+        day = parseInt(parts[2], 10);
+        dateObj = new Date(year, month - 1, day);
+        // Basic validation
+        if (dateObj.getFullYear() !== year || dateObj.getMonth() !== (month - 1) || dateObj.getDate() !== day) {
+            alert('Data inválida. Verifique a data selecionada.');
+            return;
+        }
+    } else {
+        // Try Brazilian format DD/MM/YYYY
+        const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+        const match = dateStr.match(dateRegex);
+        if (!match) {
+            alert('Por favor, use o campo de data (seu navegador exibirá um calendário) ou informe a data no formato DD/MM/AAAA.');
+            return;
+        }
+        day = parseInt(match[1], 10);
+        month = parseInt(match[2], 10);
+        year = parseInt(match[3], 10);
+
+        // Validate date ranges
+        if (day < 1 || day > 31 || month < 1 || month > 12) {
+            alert('Data inválida. Verifique o dia e mês.');
+            return;
+        }
+
+        dateObj = new Date(year, month - 1, day);
+
+        // Validate if the date is real (handles things like 31/02)
+        if (dateObj.getDate() !== day || dateObj.getMonth() !== (month - 1)) {
+            alert('Data inválida. Verifique se o dia existe no mês informado.');
+            return;
+        }
+    }
+    
+    const user = firebase.auth().currentUser;
+    if (!user) {
+        alert('Você precisa estar logado para adicionar aniversários.');
+        return;
+    }
+    
+    try {
+        // Store in ISO format for consistency but save day/month separately for easy querying
+        const isoDate = dateObj.toISOString().split('T')[0];
+        
+        await window.db.collection('birthdays').add({
+            name: name,
+            date: isoDate,
+            day: day,
+            month: month - 1, // Store 0-indexed month for JavaScript compatibility
+            addedBy: user.uid,
+            addedByName: user.displayName || user.email,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        // Clear form
+        nameInput.value = '';
+        dateInput.value = '';
+        
+        // Show success feedback
+        const btnAddBirthday = document.getElementById('btnAddBirthday');
+        if (btnAddBirthday) {
+            const originalText = btnAddBirthday.textContent;
+            btnAddBirthday.textContent = 'Adicionado!';
+            btnAddBirthday.classList.remove('btn-orange');
+            btnAddBirthday.classList.add('btn-success');
+            btnAddBirthday.disabled = true;
+            
+            setTimeout(() => {
+                btnAddBirthday.textContent = originalText;
+                btnAddBirthday.classList.remove('btn-success');
+                btnAddBirthday.classList.add('btn-orange');
+                btnAddBirthday.disabled = false;
+            }, 2000);
+        }
+
+        // Immediately refresh lists (one-off) and update calendar UI.
+        try {
+            if (typeof loadBirthdays === 'function') loadBirthdays();
+            if (typeof loadUpcomingBirthdays === 'function') loadUpcomingBirthdays();
+            // Update calendar via shared function (may rely on listener)
+            if (typeof updateCalendarWithBirthdays === 'function') updateCalendarWithBirthdays();
+
+            // Also add a temporary immediate indicator to the calendars so the user sees the change right away
+            try {
+                markBirthdayOnCalendarTemp(dateObj, name);
+            } catch (e) {
+                // ignore if helper not available
+            }
+        } catch (e) {
+            console.warn('Não foi possível atualizar imediatamente UI de aniversários:', e);
+        }
+    } catch (error) {
+        console.error('Erro ao adicionar aniversário:', error);
+        alert('Erro ao adicionar aniversário. Tente novamente.');
+    }
+}
+
+// Delete birthday function
+async function deleteBirthday(id) {
+    if (!confirm('Tem certeza que deseja excluir este aniversário?')) return;
+    
+    try {
+        await window.db.collection('birthdays').doc(id).delete();
+        // The lists will be updated automatically via the Firestore listener in aniversarios.js
+    } catch (error) {
+        console.error('Erro ao excluir aniversário:', error);
+        alert('Erro ao excluir aniversário. Tente novamente.');
+    }
+}
+
+// Add a temporary marker on calendars so new birthdays appear instantly for the user
+function markBirthdayOnCalendarTemp(dateObj, name) {
+    if (!dateObj || !(dateObj instanceof Date)) return;
+    // Build date parts
+    const day = dateObj.getDate();
+    const month = dateObj.getMonth();
+    const year = dateObj.getFullYear();
+
+    // For page calendar
+    const pageCalendar = document.getElementById('pageCalendar');
+    const modalCalendar = document.getElementById('calendar');
+
+    [pageCalendar, modalCalendar].forEach(calendarEl => {
+        if (!calendarEl) return;
+        // find the month-year element
+        const monthYearEl = calendarEl.querySelector('.calendar-month-year') || calendarEl.querySelector('h5') || calendarEl.querySelector('h4');
+        if (!monthYearEl) return;
+        const [monthName, yearText] = monthYearEl.textContent.split(' ');
+        const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+        const monthIndex = months.indexOf(monthName);
+        if (monthIndex === -1) return;
+        const displayYear = parseInt(yearText, 10);
+        if (displayYear !== year || monthIndex !== month) return; // only mark if calendar currently showing same month
+
+        // find day cell with exact number
+        const dayCells = calendarEl.querySelectorAll('.calendar-day');
+        dayCells.forEach(cell => {
+            // skip if already has indicator
+            const cellNum = parseInt(cell.textContent.trim());
+            if (cellNum === day) {
+                // add temporary birthday dot into .task-dots
+                const dotsContainer = cell.querySelector('.task-dots');
+                if (dotsContainer && !dotsContainer.querySelector('.task-dot.aniversario')) {
+                    const dot = document.createElement('span');
+                    dot.className = 'task-dot aniversario';
+                    dot.title = `Aniversário: ${name}`;
+                    dotsContainer.appendChild(dot);
+                    cell.classList.add('has-birthday');
+                    cell.classList.add('has-task');
+
+                    // remove the temporary dot after a few seconds; the Firestore listener will add the permanent one
+                    setTimeout(() => {
+                        const tmp = dotsContainer.querySelector('.task-dot.aniversario');
+                        if (tmp) tmp.remove();
+                    }, 4000);
+                } else if (!dotsContainer) {
+                    // create container and append
+                    const container = document.createElement('div');
+                    container.className = 'task-dots';
+                    const dot = document.createElement('span');
+                    dot.className = 'task-dot aniversario';
+                    dot.title = `Aniversário: ${name}`;
+                    container.appendChild(dot);
+                    cell.appendChild(container);
+                    cell.classList.add('has-birthday');
+                    cell.classList.add('has-task');
+                    setTimeout(() => { const tmp = container.querySelector('.task-dot.aniversario'); if (tmp) tmp.remove(); }, 4000);
+                }
+            }
+        });
+    });
+}
+
+window.markBirthdayOnCalendarTemp = markBirthdayOnCalendarTemp;
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    if (!text && text !== 0) return '';
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+}
+
+// Helper function to format date in Brazilian format
+function formatDateBR(date) {
+    if (!(date instanceof Date)) {
+        date = new Date(date);
+    }
+    
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    
+    return `${day}/${month}/${year}`;
+}
+
+// Helper function to parse Brazilian date (DD/MM/YYYY) to Date object
+function parseDateBR(dateStr) {
+    const parts = dateStr.split('/');
+    if (parts.length !== 3) return null;
+    
+    const day = parseInt(parts[0]);
+    const month = parseInt(parts[1]) - 1; // Month is 0-indexed
+    const year = parseInt(parts[2]);
+    
+    return new Date(year, month, day);
+}
+
+// Make birthday functions globally available
+window.addBirthday = addBirthday;
+window.deleteBirthday = deleteBirthday;
+window.loadBirthdays = loadBirthdays;
+window.loadUpcomingBirthdays = loadUpcomingBirthdays;
+window.formatDateBR = formatDateBR;
+window.parseDateBR = parseDateBR;
+
 // Make functions globally available
 window.navigateToPage = navigateToPage;
 window.toggleSidebar = toggleSidebar;
+window.toggleSubmenu = toggleSubmenu;
 window.initializeCalendarPage = initializeCalendarPage;
 window.showPageDayTasks = showPageDayTasks;
 window.changePageMonth = changePageMonth;
+window.initializeBirthdaysPage = initializeBirthdaysPage;

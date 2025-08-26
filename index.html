@@ -23,6 +23,8 @@
     <link rel="stylesheet" href="src/css/styles.css?v=1749688002735.0.0">
     <!-- Estilos específicos de autenticação -->
     <link rel="stylesheet" href="src/css/auth-styles.css">
+    <!-- Flatpickr CSS for datepicker (Brazilian format) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     
     <!-- ========================================
          CONFIGURAÇÕES PWA (Progressive Web App)
@@ -91,12 +93,33 @@
                     <span>Calendário</span>
                 </a>
             </li>
-            <!-- Menu: Dados da Turma -->
-            <li class="menu-item" data-page="dados">
-                <a href="#" onclick="navigateToPage('dados')">
+            <!-- Menu: Dados da Turma com submenu -->
+            <li class="menu-item has-submenu" data-page="dados">
+                <a href="#" onclick="toggleSubmenu('dados'); event.preventDefault();">
                     <i class="bi bi-people"></i>
                     <span>Dados da Turma</span>
+                    <i class="bi bi-chevron-down submenu-arrow"></i>
                 </a>
+                <ul class="submenu">
+                    <li class="submenu-item" data-page="links">
+                        <a href="#" onclick="navigateToPage('links'); event.preventDefault();">
+                            <i class="bi bi-link-45deg"></i>
+                            <span>Links</span>
+                        </a>
+                    </li>                    
+                    <li class="submenu-item" data-page="sugestoes">
+                        <a href="#" onclick="navigateToPage('sugestoes'); event.preventDefault();">
+                            <i class="bi bi-chat-text"></i>
+                            <span>Sugestões/Reclamações</span>
+                        </a>
+                    </li>
+                    <li class="submenu-item" data-page="aniversarios">
+                        <a href="#" onclick="navigateToPage('aniversarios'); event.preventDefault();">
+                            <i class="bi bi-calendar-heart"></i>
+                            <span>Aniversários</span>
+                        </a>
+                    </li>
+                </ul>
             </li>
         </ul>
     </div>
@@ -201,11 +224,38 @@
                 </div>
             </div>
 
-            <!-- Dados da Turma Page -->
-            <div id="dadosPage" class="page-content">
+            <!-- Sugestões/Reclamações Page -->
+            <div id="sugestoesPage" class="page-content">
                 <div class="row">
                     <div class="col-12">
-                        <h2 class="text-orange mb-3">Dados da Turma</h2>
+                        <h2 class="text-orange mb-3">
+                            <i class="bi bi-chat-text me-2"></i>Sugestões / Reclamações
+                        </h2>
+                        <div class="card bg-dark text-light">
+                            <div class="card-body">
+                                <p class="card-text">Envie uma sugestão de melhoria ou reporte um problema — os administradores receberão a reclamação no painel.</p>
+                                <div id="complaintArea">
+                                    <div class="mb-2">
+                                        <textarea id="complaintText" class="form-control" rows="3" placeholder="Descreva sua sugestão ou reclamação..."></textarea>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <button id="btnSubmitComplaint" class="btn btn-outline-orange">Enviar</button>
+                                        <div id="complaintStatus" class="text-success align-self-center" style="display:none">Enviado. Obrigado!</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Links Page -->
+            <div id="linksPage" class="page-content">
+                <div class="row">
+                    <div class="col-12">
+                        <h2 class="text-orange mb-3">
+                            <i class="bi bi-link-45deg me-2"></i>Links da Turma
+                        </h2>
                         <div class="card bg-dark text-light">
                             <div class="card-body">
                                 <h5 class="card-title text-orange">ATMV 117</h5>
@@ -219,21 +269,58 @@
                                 <div id="classLinksAdminControls" style="display:none;" class="mb-3">
                                     <button id="btnAddClassLink" class="btn btn-orange btn-sm">Novo link</button>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-                                <hr />
-
-                                <h6 class="text-orange">Sugestões / Reclamações</h6>
-                                <p class="small text-muted">Envie uma sugestão de melhoria ou reporte um problema — os administradores receberão a reclamação no painel.</p>
-                                <div id="complaintArea">
-                                    <div class="mb-2">
-                                        <textarea id="complaintText" class="form-control" rows="3" placeholder="Descreva sua sugestão ou reclamação..."></textarea>
-                                    </div>
-                                    <div class="d-flex gap-2">
-                                        <button id="btnSubmitComplaint" class="btn btn-outline-orange">Enviar</button>
-                                        <div id="complaintStatus" class="text-success align-self-center" style="display:none">Enviado. Obrigado!</div>
+            <!-- Aniversários Page -->
+            <div id="aniversariosPage" class="page-content">
+                <div class="row">
+                    <div class="col-12">
+                        <h2 class="text-orange mb-3">
+                            <i class="bi bi-calendar-heart me-2"></i>Aniversários da Turma
+                        </h2>
+                        <div class="row">
+                            <div class="col-lg-8">
+                                <div class="card bg-dark text-light mb-3">
+                                    <div class="card-body">
+                                        <h5 class="card-title text-orange">Adicionar Aniversário</h5>
+                                        <div class="mb-3">
+                                            <label for="birthdayName" class="form-label">Seu Nome</label>
+                                            <input type="text" class="form-control" id="birthdayName" placeholder="Digite seu nome">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="birthdayDate" class="form-label">Data do Aniversário</label>
+                                            <!-- Use text input + Flatpickr to force dd/mm/aaaa display while keeping a calendar picker -->
+                                            <input type="text" class="form-control" id="birthdayDate" placeholder="dd/mm/aaaa" autocomplete="off">
+                                        </div>
+                                        <button id="btnAddBirthday" class="btn btn-orange">Adicionar Aniversário</button>
                                     </div>
                                 </div>
-
+                            </div>
+                            <div class="col-lg-4">
+                                <div class="card bg-dark text-light">
+                                    <div class="card-body">
+                                        <h5 class="card-title text-orange">Próximos Aniversários</h5>
+                                        <div id="upcomingBirthdays">
+                                            <!-- Lista de próximos aniversários -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <div class="card bg-dark text-light">
+                                    <div class="card-body">
+                                        <h5 class="card-title text-orange">Todos os Aniversários</h5>
+                                        <div id="allBirthdays" class="row">
+                                            <!-- Lista de todos os aniversários -->
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -243,7 +330,7 @@
     </div>
 
         <!-- Floating Action Button -->
-    <button class="fab" data-bs-toggle="modal" data-bs-target="#taskModal">
+    <button id="fabAddTask" class="fab" data-bs-toggle="modal" data-bs-target="#taskModal">
         <i class="bi bi-plus-lg"></i>
     </button>
 
@@ -273,7 +360,8 @@
                         </div>
                         <div class="mb-3">
                             <label for="taskDate" class="form-label">Data</label>
-                            <input type="date" class="form-control" id="taskDate" required>
+                            <!-- Use text input + Flatpickr with altInput so display is dd/mm/aaaa but underlying value remains YYYY-MM-DD -->
+                            <input type="text" class="form-control" id="taskDate" placeholder="dd/mm/aaaa" autocomplete="off" required>
                         </div>
                         <div class="mb-3">
                             <label for="taskDescription" class="form-label">Descrição</label>
@@ -515,10 +603,14 @@
     <script src="src/js/lib/tasks.js"></script>
     <!-- Sistema de calendário -->
     <script src="src/js/lib/calendar.js"></script>
+    <!-- Flatpickr (date picker) - load before app so app can initialize it -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <!-- Aplicação principal -->
     <script src="src/js/lib/app.js"></script>
     <!-- Dados da turma -->
     <script src="src/js/lib/dados.js"></script>
+    <!-- Sistema de aniversários -->
+    <script src="src/js/lib/aniversarios.js"></script>
 
     <!-- ========================================
          BIBLIOTECAS EXTERNAS JS
