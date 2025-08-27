@@ -308,27 +308,13 @@ function loadTasksData(yearStart, yearEnd, todayStr, monthStart, monthEnd) {
         return;
     }
     
-    // Carregar tarefas
-    window.db.collection('tasks')
-        .where('userId', '==', user.uid)
-        .onSnapshot((snapshot) => {
-            if (snapshot.size === 0) {
-                // Verificar tarefas antigas
-                window.db.collection('tasks')
-                    .onSnapshot((allSnapshot) => {
-                        console.log('� Total de tarefas no banco:', allSnapshot.size);
-                        processTasksSnapshot(allSnapshot, user, yearStart, yearEnd, todayStr, monthStart, monthEnd, true);
-                    }, (error) => {
-                        console.error('❌ Erro ao carregar todas as tarefas:', error);
-                        showErrorMessage();
-                    });
-            } else {
-                processTasksSnapshot(snapshot, user, yearStart, yearEnd, todayStr, monthStart, monthEnd, false);
-            }
-        }, (error) => {
-            console.error('❌ Erro ao carregar tarefas do usuário:', error);
-            showErrorMessage();
-        });
+    // Carregar todas as tarefas (modo global)
+    window.db.collection('tasks').onSnapshot((snapshot) => {
+        processTasksSnapshot(snapshot, user, yearStart, yearEnd, todayStr, monthStart, monthEnd, false);
+    }, (error) => {
+        console.error('❌ Erro ao carregar tarefas:', error);
+        showErrorMessage();
+    });
 }
 
 function processTasksSnapshot(snapshot, user, yearStart, yearEnd, todayStr, monthStart, monthEnd, isFallback) {
@@ -343,29 +329,18 @@ function processTasksSnapshot(snapshot, user, yearStart, yearEnd, todayStr, mont
     snapshot.forEach((doc) => {
         const taskData = doc.data();
         
-        if (isFallback) {
-            // Se não tem userId, assumir que é do usuário atual se foi criada por ele
-            if (!taskData.userId) {
-                const userEmail = user.email;
-                const userDisplayName = user.displayName;
+            // Não filtrar por propriedade: tarefas são globais
+            // Se houver fallback, apenas tentamos adicionar userId para rastreio, mas não pulamos tarefas
+            if (isFallback && !taskData.userId) {
                 const createdBy = taskData.createdBy;
-                
-                if (createdBy === userEmail || createdBy === userDisplayName || createdBy === 'Usuário') {
-                    // Atualizar a tarefa com userId
-                    window.db.collection('tasks').doc(doc.id).update({ userId: user.uid })
-                        .catch(error => console.error('❌ Erro na migração:', error));
-                    
-                    taskData.userId = user.uid; // Para processamento atual
-                } else {
-                    return; // Pular esta tarefa
-                }
+                try {
+                    // se parecer que foi criado por este usuário, atualizamos userId para rastreio
+                    if (createdBy === user.email || createdBy === user.displayName || createdBy === 'Usuário') {
+                        window.db.collection('tasks').doc(doc.id).update({ userId: user.uid }).catch(error => console.error('❌ Erro na migração:', error));
+                        taskData.userId = user.uid;
+                    }
+                } catch (e) { /* ignore */ }
             }
-        }
-        
-        // ✅ VALIDAR PROPRIEDADE
-        if (taskData.userId !== user.uid) {
-            return;
-        }
         
         // ✅ CARREGAR TAREFAS DO ANO INTEIRO (para navegação no calendário)
         if (taskData.date >= yearStartStr && taskData.date <= yearEndStr) {
@@ -908,11 +883,7 @@ function editTask(taskId) {
                 
                 const taskData = doc.data();
                 
-                // ✅ VERIFICAR SE A TAREFA PERTENCE AO USUÁRIO ATUAL
-                if (taskData.userId !== currentUser.uid) {
-                    alert('Você não tem permissão para editar esta tarefa');
-                    return;
-                }
+                // Permitir edição de qualquer tarefa (app global)
                 
                 task = { id: doc.id, ...taskData };
                 populateEditForm(task);
@@ -924,11 +895,7 @@ function editTask(taskId) {
         return;
     }
 
-    // ✅ VERIFICAR SE A TAREFA PERTENCE AO USUÁRIO ATUAL
-    if (task.userId !== currentUser.uid) {
-        alert('Você não tem permissão para editar esta tarefa');
-        return;
-    }
+    // Permitir edição de qualquer tarefa (app global)
 
     populateEditForm(task);
 }
@@ -1032,11 +999,7 @@ function deleteTask(taskId) {
                 
                 const taskData = doc.data();
                 
-                // ✅ VERIFICAR SE A TAREFA PERTENCE AO USUÁRIO ATUAL
-                if (taskData.userId !== currentUser.uid) {
-                    alert('Você não tem permissão para deletar esta tarefa');
-                    return;
-                }
+                // Permitir deleção de qualquer tarefa (app global)
                 
                 // Confirmar deleção
                 if (!confirm('Tem certeza que deseja excluir esta tarefa?')) return;
@@ -1060,11 +1023,7 @@ function deleteTask(taskId) {
         return;
     }
 
-    // ✅ VERIFICAR SE A TAREFA PERTENCE AO USUÁRIO ATUAL
-    if (task.userId !== currentUser.uid) {
-        alert('Você não tem permissão para deletar esta tarefa');
-        return;
-    }
+    // Permitir deleção de qualquer tarefa (app global)
 
     if (!confirm('Tem certeza que deseja excluir esta tarefa?')) return;
 
@@ -1104,12 +1063,7 @@ function showTaskDetails(taskId) {
                 
                 const taskData = doc.data();
                 
-                // ✅ VERIFICAR SE A TAREFA PERTENCE AO USUÁRIO ATUAL
-                const currentUser = firebase.auth()?.currentUser;
-                if (taskData.userId !== currentUser?.uid) {
-                    alert('Você não tem permissão para visualizar esta tarefa');
-                    return;
-                }
+                // Permitir visualização de qualquer tarefa (app global)
                 
                 task = { id: doc.id, ...taskData };
                 displayTaskDetails(task);

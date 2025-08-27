@@ -490,27 +490,12 @@ function loadPageCalendarData() {
     };
 
     // Try user-specific query first (if logged in), otherwise fall back to all tasks
-    if (user) {
-        window.db.collection('tasks').where('userId', '==', user.uid).get()
-            .then((snap) => {
-                if (snap.empty) {
-                    // no user-specific tasks — fetch all tasks as fallback
-                    return window.db.collection('tasks').get();
-                }
-                return snap;
-            })
-            .then(buildTasksFromSnapshot)
-            .catch((error) => {
-                console.error('Erro ao carregar tarefas do calendário:', error);
-            });
-    } else {
-        // not logged in — fetch all tasks
-        window.db.collection('tasks').get()
-            .then(buildTasksFromSnapshot)
-            .catch((error) => {
-                console.error('Erro ao carregar tarefas do calendário:', error);
-            });
-    }
+    // Fetch all tasks for calendar page view (global)
+    window.db.collection('tasks').get()
+        .then(buildTasksFromSnapshot)
+        .catch((error) => {
+            console.error('Erro ao carregar tarefas do calendário:', error);
+        });
 }
 
 // Render calendar for page view
