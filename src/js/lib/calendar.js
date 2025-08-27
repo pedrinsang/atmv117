@@ -79,8 +79,53 @@ function loadCalendarData() {
 
     console.log('✅ Usuário autenticado, iniciando listener do calendário...');
 
+    // Escutar todas as tarefas (modo global)
     const unsubscribe = window.db.collection('tasks').onSnapshot((snapshot) => {
         console.log(`Snapshot recebido: ${snapshot.size} documentos`);
+
+        // Se não houver tarefas para userId, tentar fallback: procurar documentos sem userId
+        // que possivelmente pertencem a este usuário (createdBy igual ao email/displayName) e migrá-los.
+        if (snapshot.size === 0) {
+            console.log('Nenhuma tarefa encontrada para userId; tentando fallback de migração...');
+            window.db.collection('tasks').get().then((allSnapshot) => {
+                calendarTasks = {};
+                allSnapshot.forEach((doc) => {
+                    const task = doc.data();
+                    // Se não há userId, checar createdBy
+                    if (!task.userId) {
+                        const createdBy = task.createdBy;
+                        if (createdBy === user.email || createdBy === user.displayName || createdBy === 'Usuário') {
+                            // Atualizar documento para anexar userId (não bloquear loop em caso de erro)
+                            window.db.collection('tasks').doc(doc.id).update({ userId: user.uid }).catch(err => console.error('Erro na migração de task:', err));
+                            task.userId = user.uid;
+                        } else {
+                            return; // pular tarefa de outro autor
+                        }
+                    }
+
+                    if (task.userId !== user.uid) return;
+
+                    if (!calendarTasks[task.date]) calendarTasks[task.date] = [];
+                    calendarTasks[task.date].push({ id: doc.id, ...task });
+                });
+
+                console.log('🗓️ Tarefas processadas (fallback):', Object.keys(calendarTasks).length, 'dias com tarefas');
+                renderCalendar();
+            }).catch((error) => {
+                console.error('❌ Erro no fallback ao carregar todas as tarefas:', error);
+                const calendar = document.getElementById('calendar');
+                if (calendar) {
+                    calendar.innerHTML = `
+                        <div class="alert alert-danger">
+                            <h6>❌ Erro ao carregar calendário</h6>
+                            <p><strong>Erro:</strong> ${error.code || ''} - ${error.message || String(error)}</p>
+                        </div>
+                    `;
+                }
+            });
+
+            return;
+        }
 
         calendarTasks = {};
         snapshot.forEach((doc) => {
@@ -101,18 +146,14 @@ function loadCalendarData() {
             console.error('1. Usuário não está autenticado');
             console.error('2. Regras do Firestore não foram aplicadas');
             console.error('3. Token de autenticação expirado');
-
-            // diagnóstico automático removido
         }
 
-        // Mostrar erro na interface
         const calendar = document.getElementById('calendar');
         if (calendar) {
             calendar.innerHTML = `
                 <div class="alert alert-danger">
                     <h6>❌ Erro ao carregar calendário</h6>
                     <p><strong>Erro:</strong> ${error.code} - ${error.message}</p>
-                    <!-- diagnóstico removido -->
                 </div>
             `;
         }
