@@ -21,10 +21,12 @@
     const complaintText = () => el('#complaintText');
     const btnSubmitComplaint = () => el('#btnSubmitComplaint');
     const complaintStatus = () => el('#complaintStatus');
+    const complaintsList = () => el('#complaintsList');
 
     // State
     let isAdmin = false;
     let linksUnsub = null;
+    let complaintsUnsub = null;
 
     async function checkAdmin() {
         const user = firebase.auth().currentUser;
@@ -240,8 +242,8 @@
     async function submitComplaint(){
         const text = complaintText().value.trim();
         if (!text) return alert('Escreva sua sugestão/ reclamação');
-    // Store complaints anonymously: do not record user id or name
-    const payload = { message: text, createdAt: firebase.firestore.FieldValue.serverTimestamp(), seen: false, resolved: false, anonymous: true };
+        // Store complaints anonymously
+        const payload = { message: text, createdAt: firebase.firestore.FieldValue.serverTimestamp(), seen: false, resolved: false, anonymous: true };
         try {
             btnSubmitComplaint().disabled = true;
             await window.db.collection('classComplaints').add(payload);
@@ -252,20 +254,60 @@
         finally { btnSubmitComplaint().disabled = false; }
     }
 
+    function renderComplaintItem(doc){
+        const c = doc.data() || {};
+        const id = doc.id;
+        const when = c.createdAt && c.createdAt.toDate ? c.createdAt.toDate() : null;
+        const dateStr = when ? when.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+        let seenInfo = '';
+        if (c.seen) {
+            let seenAt = '';
+            if (c.seenAt && c.seenAt.toDate) {
+                const d = c.seenAt.toDate();
+                seenAt = d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+            }
+            seenInfo = `
+                <div class="mt-2 small text-success d-flex align-items-center">
+                    <i class="bi bi-check2-circle me-1"></i>
+                    Revisado pela Administração${seenAt ? ` — ${seenAt}` : ''}
+                </div>`;
+        }
+        return `
+            <div class="rounded p-2 mb-2" data-id="${id}" style="border:1px solid rgba(255,255,255,0.15); ${c.seen ? 'border-left:4px solid #28a745;' : ''}">
+                <div class="small mb-1" style="color: var(--orange-dark) ;">Usuário Anônimo ${dateStr ? '— ' + dateStr : ''}</div>
+                <div>${escapeHtml(c.message || '')}</div>
+                ${seenInfo}
+            </div>
+        `;
+    }
+
+    function subscribeComplaintsPublic(){
+        const list = complaintsList();
+        if (!list || !window.db) return;
+        if (complaintsUnsub) complaintsUnsub();
+        complaintsUnsub = window.db.collection('classComplaints').orderBy('createdAt','desc').limit(100).onSnapshot(snap => {
+            if (snap.empty) { list.innerHTML = '<div class="text-muted">Nenhuma mensagem enviada ainda.</div>'; return; }
+            const items = [];
+            snap.forEach(doc => items.push(renderComplaintItem(doc)));
+            list.innerHTML = items.join('');
+        }, err => { console.error('Erro ao ouvir classComplaints:', err); list.innerHTML = '<div class="text-danger">Erro ao carregar mensagens</div>'; });
+    }
+
     // Init
     async function init(){
         // wait for firebase
         if (typeof firebase === 'undefined' || !window.db) { setTimeout(init, 500); return; }
         await checkAdmin();
         if (isAdmin && adminControls()) adminControls().style.display = 'block';
-        subscribeClassLinks();
+    subscribeClassLinks();
+    subscribeComplaintsPublic();
         attachDelegation();
 
         if (btnAdd()) btnAdd().addEventListener('click', ()=> openEditLinkModal(null));
         if (btnSubmitComplaint()) btnSubmitComplaint().addEventListener('click', submitComplaint);
 
         // re-check admin when auth changes
-        firebase.auth().onAuthStateChanged(async (u)=>{ await checkAdmin(); if (isAdmin && adminControls()) adminControls().style.display='block'; else if (adminControls()) adminControls().style.display='none'; });
+    firebase.auth().onAuthStateChanged(async (u)=>{ await checkAdmin(); if (isAdmin && adminControls()) adminControls().style.display='block'; else if (adminControls()) adminControls().style.display='none'; });
     }
 
     init();

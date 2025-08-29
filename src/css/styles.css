@@ -66,6 +66,62 @@ footer {
     padding: 1rem 0;
 }
 
+/* ======================
+   Notifications (Bell)
+   Responsive tweaks
+====================== */
+#notificationsDropdown .dropdown-menu {
+    /* Fluid and clamped; allow the menu to stay within viewport */
+    width: clamp(220px, 92vw, 360px);
+    max-width: 95vw;
+    inset: auto 0 auto auto; /* prefer right alignment */
+}
+
+#notificationsList {
+    max-height: 50vh; /* scroll on mobile */
+    overflow: auto;
+}
+
+#notificationsList .small {
+    word-break: break-word;
+    white-space: normal;
+}
+
+#notificationsList .text-muted.small {
+    padding: 6px 4px;
+    display: block;
+}
+
+@media (max-width: 576px) {
+    #notificationsDropdown .dropdown-menu {
+    position: fixed; /* anchor to viewport to avoid container clipping */
+    z-index: 1100;
+    top: 62px; /* approx navbar height */
+    border-radius: 10px;
+    right: 8px !important;
+    left: 8px !important;
+    transform: none !important; /* avoid off-screen due to transform */
+    width: auto;
+    max-width: none;
+    }
+    #markAllNotificationsRead {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.8rem;
+        line-height: 1.1rem;
+    }
+    .notifications-header {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+}
+
+@media (max-width: 360px) {
+    #notificationsDropdown .dropdown-menu {
+    width: calc(100vw - 10px);
+    max-width: calc(100vw - 10px);
+    }
+}
+
 .bg-orange {
     background-color: var(--orange-primary) !important;
     position: relative;
