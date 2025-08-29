@@ -475,7 +475,18 @@ class AdminSystem {
             if (!doc.exists) return this.showAlert('Reclamação não encontrada', 'warning');
             const data = doc.data() || {};
             const newSeen = !data.seen;
-            await this.db.collection('classComplaints').doc(id).update({ seen: newSeen });
+            const update = { seen: newSeen };
+            if (newSeen) {
+                update.seenAt = firebase.firestore.FieldValue.serverTimestamp();
+                update.seenBy = this.currentUser?.uid || null;
+                update.seenByEmail = this.currentUser?.email || null;
+            } else {
+                // Optional: clear metadata when marking as não lida
+                update.seenAt = null;
+                update.seenBy = null;
+                update.seenByEmail = null;
+            }
+            await this.db.collection('classComplaints').doc(id).update(update);
             this.showAlert(newSeen ? 'Marcado como lido' : 'Marcado como não lida', 'success');
         } catch(err){ console.error(err); this.showAlert('Erro: '+(err.message||err.code||''),'danger'); }
     }

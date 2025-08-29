@@ -62,6 +62,8 @@ class AuthSystem {
         this.loadingOverlay = document.getElementById('loadingOverlay');
         this.confirmPasswordGroup = document.getElementById('confirmPasswordGroup');
         this.nameGroup = document.getElementById('nameGroup');
+    this.matriculaGroup = document.getElementById('matriculaGroup');
+    this.matriculaInput = document.getElementById('registrationMatricula');
 
         // Event listeners apenas se estamos na página de login
         this.setupEventListeners();
@@ -118,15 +120,19 @@ class AuthSystem {
         if (isRegister) {
             this.confirmPasswordGroup.classList.remove('d-none');
             this.nameGroup.classList.remove('d-none');
+            if (this.matriculaGroup) this.matriculaGroup.classList.remove('d-none');
             this.submitBtn.innerHTML = '<i class="bi bi-person-plus me-2"></i>Criar Conta';
             this.confirmPasswordInput.required = true;
             this.fullNameInput.required = true;
+            if (this.matriculaInput) this.matriculaInput.required = true;
         } else {
             this.confirmPasswordGroup.classList.add('d-none');
             this.nameGroup.classList.add('d-none');
+            if (this.matriculaGroup) this.matriculaGroup.classList.add('d-none');
             this.submitBtn.innerHTML = '<i class="bi bi-box-arrow-in-right me-2"></i>Entrar';
             this.confirmPasswordInput.required = false;
             this.fullNameInput.required = false;
+            if (this.matriculaInput) this.matriculaInput.required = false;
         }
     }
 
@@ -183,6 +189,7 @@ class AuthSystem {
     async handleRegister(email, password) {
         const confirmPassword = this.confirmPasswordInput.value;
         const fullName = this.fullNameInput.value.trim();
+    const matricula = (this.matriculaInput?.value || '').trim();
 
         // Validações adicionais para registro
         if (password !== confirmPassword) {
@@ -192,6 +199,11 @@ class AuthSystem {
 
         if (!fullName) {
             this.showAlert('Por favor, informe seu nome completo.', 'warning');
+            return;
+        }
+
+        if (!matricula) {
+            this.showAlert('Por favor, informe sua matrícula.', 'warning');
             return;
         }
 
@@ -208,10 +220,15 @@ class AuthSystem {
             });
 
             // Criar documento do usuário no Firestore
+            // Validar matrícula contra a lista de aceitas
+            const accepted = await this.isMatriculaAccepted(matricula);
+
             await this.createUserDocument(user, {
                 fullName: fullName,
                 email: email,
                 role: 'user', // Por padrão, novos usuários são 'user'
+                matricula: matricula,
+                accepted: accepted === true,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                 lastLogin: firebase.firestore.FieldValue.serverTimestamp()
             });
@@ -225,6 +242,30 @@ class AuthSystem {
         } finally {
             this.showLoading(false);
         }
+    }
+
+    // Checa se a matrícula está na lista de aceitas
+    async isMatriculaAccepted(matricula) {
+        try {
+            // Suportar duas estruturas: coleção 'matriculas_aceitas' com docs {numero}, ou doc único 'config/matriculas_aceitas' com array
+            // 1) Coleção
+            const colRef = this.db.collection('matriculas_aceitas');
+            const snap = await colRef.limit(1).get();
+            if (!snap.empty) {
+                const docRef = await this.db.collection('matriculas_aceitas').doc(matricula).get();
+                if (docRef.exists) return true;
+            }
+            // 2) Documento único com array
+            const cfgDoc = await this.db.collection('config').doc('matriculas_aceitas').get();
+            if (cfgDoc.exists) {
+                const data = cfgDoc.data();
+                const arr = Array.isArray(data?.lista) ? data.lista : (Array.isArray(data?.matriculas) ? data.matriculas : null);
+                if (arr && arr.includes(matricula)) return true;
+            }
+        } catch (e) {
+            console.warn('Falha ao checar matriculas_aceitas:', e);
+        }
+        return false;
     }
 
     async createUserDocument(user, userData) {

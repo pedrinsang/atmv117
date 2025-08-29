@@ -272,6 +272,24 @@ function toggleSidebar() {
 }
 
 function navigateToPage(page) {
+    // Guardar acesso às subpáginas de "Dados da Turma" para usuários não aceitos
+    try {
+        const dadosRestricted = ['sugestoes', 'links', 'aniversarios'];
+        if (dadosRestricted.includes(page)) {
+            const isAdminFn = (typeof window.isAdmin === 'function') ? window.isAdmin : () => false;
+            const getUserFn = (typeof window.getCurrentUserData === 'function') ? window.getCurrentUserData : () => null;
+            const userData = getUserFn();
+            const canSeeDados = isAdminFn() || (userData && userData.accepted === true);
+            if (!canSeeDados) {
+                // Exibir mensagem simples e bloquear navegação
+                try { alert('Acesso restrito. Essa seção é visível apenas para alunos com matrícula aceita.'); } catch (e) { /* noop */ }
+                return;
+            }
+        }
+    } catch (e) {
+        console.warn('Falha ao validar acesso às subpáginas de dados:', e);
+    }
+
     // Hide all pages
     const pages = document.querySelectorAll('.page-content');
     pages.forEach(p => p.classList.remove('active'));

@@ -87,6 +87,12 @@ class MainAuthManager {
             userDropdown.style.display = 'block';
         }
 
+        // Mostrar sininho de notificações
+        const notif = document.getElementById('notificationsDropdown');
+        if (notif) {
+            notif.style.display = 'block';
+        }
+
         // Atualizar nome do usuário (envolvido em span para permitir esconder no mobile)
         const userDisplayName = document.getElementById('userDisplayName');
         if (userDisplayName) {
@@ -110,6 +116,128 @@ class MainAuthManager {
         if (this.userData.role === 'admin') {
             this.applyAdminStyling();
         }
+
+        // Mostrar/ocultar menu "Dados da Turma" com base na matrícula aceita
+        try {
+            const dadosMenu = document.querySelector('.menu-item.has-submenu[data-page="dados"]');
+            if (dadosMenu) {
+                const canSeeDados = !!this.userData.accepted || this.userData.role === 'admin';
+                dadosMenu.style.display = canSeeDados ? '' : 'none';
+            }
+        } catch (e) {
+            console.warn('Falha ao ajustar visibilidade do menu Dados da Turma:', e);
+        }
+
+        // Atualizar acesso às notificações de reclamações (somente aceitos/admin)
+        try {
+            if (typeof window.notificationsRefreshAccess === 'function') {
+                window.notificationsRefreshAccess();
+            }
+        } catch(e) {
+            console.warn('Falha ao atualizar acesso às notificações:', e);
+        }
+
+        // Exibir prompt de matrícula para usuários antigos sem matrícula
+        try {
+            const needsMatricula = !this.userData.matricula;
+            if (needsMatricula) {
+                const modalEl = document.getElementById('matriculaPromptModal');
+                const inputEl = document.getElementById('matriculaPromptInput');
+                const errorEl = document.getElementById('matriculaPromptError');
+                const saveBtn = document.getElementById('matriculaPromptSave');
+                if (modalEl && inputEl && saveBtn) {
+                    let bsModal = null;
+                    const backdropId = 'matriculaPromptBackdrop';
+                    const showFallback = () => {
+                        modalEl.classList.add('show');
+                        modalEl.style.display = 'block';
+                        modalEl.removeAttribute('aria-hidden');
+                        modalEl.setAttribute('aria-modal', 'true');
+                        // criar backdrop
+                        if (!document.getElementById(backdropId)) {
+                            const bd = document.createElement('div');
+                            bd.id = backdropId;
+                            bd.className = 'modal-backdrop fade show';
+                            document.body.appendChild(bd);
+                        }
+                    };
+                    const hideFallback = () => {
+                        modalEl.classList.remove('show');
+                        modalEl.style.display = 'none';
+                        modalEl.setAttribute('aria-hidden', 'true');
+                        modalEl.removeAttribute('aria-modal');
+                        const bd = document.getElementById(backdropId);
+                        if (bd) bd.remove();
+                    };
+                    const showModal = () => {
+                        if (window.bootstrap && bootstrap.Modal) {
+                            bsModal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
+                            bsModal.show();
+                        } else {
+                            showFallback();
+                        }
+                    };
+                    const hideModal = () => {
+                        if (bsModal) {
+                            bsModal.hide();
+                        } else {
+                            hideFallback();
+                        }
+                    };
+
+                    showModal();
+                    saveBtn.onclick = async () => {
+                        const matricula = (inputEl.value || '').trim();
+                        if (!matricula) {
+                            if (errorEl) { errorEl.textContent = 'Informe sua matrícula.'; errorEl.style.display = 'block'; }
+                            return;
+                        }
+                        saveBtn.disabled = true; saveBtn.textContent = 'Salvando...';
+                        try {
+                            // Validar matrícula com Firestore
+                            const accepted = await this.isMatriculaAccepted(matricula);
+                            const patch = { matricula, accepted: !!accepted };
+                            await this.db.collection('users').doc(this.currentUser.uid).update(patch);
+                            this.userData = { ...this.userData, ...patch };
+                            if (errorEl) errorEl.style.display = 'none';
+                            hideModal();
+                            // Atualizar UI e menus conforme accepted
+                            this.showUserInterface();
+                        } catch (err) {
+                            console.error('Erro ao salvar matrícula:', err);
+                            if (errorEl) { errorEl.textContent = 'Erro ao validar/salvar matrícula.'; errorEl.style.display = 'block'; }
+                        } finally {
+                            saveBtn.disabled = false; saveBtn.textContent = 'Salvar';
+                        }
+                    };
+                }
+            }
+        } catch(e) {
+            console.warn('Falha ao exibir prompt de matrícula:', e);
+        }
+    }
+
+    // Reuso da verificação de matrícula aceita (mesma lógica do auth.js)
+    async isMatriculaAccepted(matricula) {
+        try {
+            // 1) Coleção: 'matriculas_aceitas' com docs por matrícula
+            const colRef = this.db.collection('matriculas_aceitas');
+            const snap = await colRef.limit(1).get();
+            if (!snap.empty) {
+                const docRef = await this.db.collection('matriculas_aceitas').doc(matricula).get();
+                if (docRef.exists) return true;
+            }
+            // 2) Documento único config/matriculas_aceitas com array
+            const cfgDoc = await this.db.collection('config').doc('matriculas_aceitas').get();
+            if (cfgDoc.exists) {
+                const data = cfgDoc.data();
+                const arr = Array.isArray(data?.lista) ? data.lista : (Array.isArray(data?.matriculas) ? data.matriculas : null);
+                if (arr && arr.includes(matricula)) return true;
+            }
+        } catch (e) {
+            console.warn('Falha ao checar matriculas_aceitas (main-auth):', e);
+        }
+        return false;
     }
 
     applyAdminStyling() {

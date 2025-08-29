@@ -146,6 +146,24 @@
             </a>
             
             <div class="d-flex align-items-center ms-auto">
+                <!-- Notifications -->
+                <div class="dropdown me-2" id="notificationsDropdown" style="display:none;">
+                    <button class="btn btn-outline-light position-relative" type="button" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false" id="notificationsButton">
+                        <i class="bi bi-bell"></i>
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="notificationsBadge" style="display:none;">0</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end p-0">
+                        <li class="px-3 py-2 border-bottom d-flex justify-content-between align-items-center notifications-header">
+                            <span class="fw-semibold">Notificações</span>
+                            <button class="btn btn-sm btn-outline-secondary" id="markAllNotificationsRead">Marcar como lidas</button>
+                        </li>
+                        <li>
+                            <div id="notificationsList" class="p-2" style="max-height: 360px; overflow:auto;">
+                                <div class="text-muted small">Carregando...</div>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
                 <!-- Informações do usuário logado -->
                 <div class="dropdown me-2" id="userDropdown" style="display: none;">
                     <button class="btn btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown">
@@ -238,10 +256,18 @@
                                     <div class="mb-2">
                                         <textarea id="complaintText" class="form-control" rows="3" placeholder="Descreva sua sugestão ou reclamação..."></textarea>
                                     </div>
+                                    <div class="form-text text-white mb-2">
+                                        Observação: sua mensagem é enviada de forma anônima e ficará visível para todos que têm acesso a esta seção.
+                                    </div>
                                     <div class="d-flex gap-2">
                                         <button id="btnSubmitComplaint" class="btn btn-outline-orange">Enviar</button>
                                         <div id="complaintStatus" class="text-success align-self-center" style="display:none">Enviado. Obrigado!</div>
                                     </div>
+                                </div>
+                                <hr class="border-secondary">
+                                <h6 class="text-orange mb-3"><i class="bi bi-chat-dots me-2"></i>Mensagens da Turma</h6>
+                                <div id="complaintsList">
+                                    <!-- Lista de sugestões/reclamações aparecerá aqui -->
                                 </div>
                             </div>
                         </div>
@@ -447,6 +473,29 @@
         </div>
     </div>
 
+    <!-- Matrícula Prompt Modal -->
+    <div class="modal fade" id="matriculaPromptModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-orange text-white">
+                    <h5 class="modal-title">Atualizar seu cadastro</h5>
+                </div>
+                <div class="modal-body" style="color:black;">
+                    <p>Para acessar todas as áreas da turma, informe sua matrícula abaixo.</p>
+                    <div class="mb-2">
+                        <label for="matriculaPromptInput" class="form-label">Matrícula</label>
+                        <input type="text" class="form-control" id="matriculaPromptInput" placeholder="Digite sua matrícula">
+                        <div class="form-text">Usaremos para validar seu acesso aos Dados da Turma.</div>
+                    </div>
+                    <div id="matriculaPromptError" class="text-danger small" style="display:none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-orange" id="matriculaPromptSave">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- iOS Install Modal -->
     <div class="modal fade" id="iosInstallModal" tabindex="-1">
       <div class="modal-dialog modal-dialog-centered">
@@ -605,6 +654,7 @@
     <script src="src/js/lib/tasks.js"></script>
     <!-- Sistema de calendário -->
     <script src="src/js/lib/calendar.js"></script>
+    <script src="src/js/lib/notifications.js"></script>
     <!-- Flatpickr (date picker) - load before app so app can initialize it -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <!-- Aplicação principal -->
