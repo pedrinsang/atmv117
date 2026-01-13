@@ -1,229 +1,166 @@
-// Notifications system: in-app only (no push) to show daily tasks, birthdays, and new complaints
-(function(){
-  const state = {
+// ========================================
+// SISTEMA DE NOTIFICAÇÕES INTELIGENTE
+// ========================================
+
+window.notificationSystem = {
+    lastViewed: 0,
     unreadCount: 0,
     items: [],
-    lastRenderedDayKey: null,
-    unsubTasks: null,
-    unsubBirthdays: null,
-  unsubComplaints: null,
-  complaintsSubscribed: false
-  };
 
-  function el(id){ return document.getElementById(id); }
-  function fmtDate(d){
-    try{ return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }); }catch{ return d.toISOString(); }
-  }
-  function isToday(date){
-    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const t = new Date();
-    const tt = new Date(t.getFullYear(), t.getMonth(), t.getDate());
-    return d.getTime() === tt.getTime();
-  }
-  function toISODate(date){ return date.toISOString().split('T')[0]; }
+    init: function() {
+        const stored = localStorage.getItem('notificationsLastViewed');
+        this.lastViewed = stored ? parseInt(stored) : 0;
+        this.startListeners();
+    },
 
-  function ensureVisible(){
-    const dd = el('notificationsDropdown');
-    if (dd) dd.style.display = 'block';
-  }
+    startListeners: function() {
+        if (!window.db) { setTimeout(() => this.startListeners(), 1000); return; }
 
-  function setBadge(n){
-    const b = el('notificationsBadge');
-    if (!b) return;
-    if (n > 0){ b.textContent = String(n); b.style.display = 'inline-block'; }
-    else { b.style.display = 'none'; }
-  }
+        // 1. Ouvir Tarefas
+        window.db.collection('tasks').orderBy('createdAt', 'desc').limit(20)
+            .onSnapshot(
+                snap => this.processSnapshot(snap, 'task'),
+                error => console.warn("Aviso: Permissão tarefas", error.code)
+            );
 
-  function renderList(){
-    const list = el('notificationsList');
-    if (!list) return;
-    if (state.items.length === 0){
-      list.innerHTML = '<div class="text-muted small">Sem novas notificações</div>';
-      return;
-    }
-    list.innerHTML = state.items.map(item => item.html).join('');
-  }
+        // 2. Ouvir Sugestões
+        window.db.collection('complaints').orderBy('createdAt', 'desc').limit(20)
+            .onSnapshot(
+                snap => this.processSnapshot(snap, 'complaint'),
+                error => console.warn("Aviso: Permissão sugestões", error.code)
+            );
+    },
 
-  function addItem(id, html, key){
-    if (state.items.find(i => i.id === id)) return;
-    state.items.unshift({ id, html, key, unread: true });
-    state.unreadCount = state.items.filter(i => i.unread).length;
-    setBadge(state.unreadCount);
-    renderList();
-  }
+    processSnapshot: function(snapshot, type) {
+        if(snapshot.empty && this.items.length === 0) return;
 
-  function markAllRead(){
-    state.items.forEach(i => i.unread = false);
-    state.unreadCount = 0;
-    setBadge(0);
-    // Add a subtle class removal if desired later
-  }
-
-  function onMarkAllClick(){ markAllRead(); }
-
-  function todayKey(){ return toISODate(new Date()); }
-
-  // Build daily notifications
-  async function wireDailyTasks(){
-    try{
-      if (!window.db) return;
-      const key = todayKey();
-      if (state.lastRenderedDayKey === key) return; // we'll still wire realtime streams below
-      state.lastRenderedDayKey = key;
-      const snap = await window.db.collection('tasks').where('date','==', key).get();
-      if (!snap.empty){
-        const count = snap.size;
-        addItem('tasks-'+key, `
-          <div class="p-2 border-bottom small">
-            <i class="bi bi-list-task me-1 text-orange"></i>
-            ${count} tarefa(s) para hoje
-          </div>
-        `, key);
-      }
-      // Optional: subscribe for more tasks added today in realtime
-      state.unsubTasks = window.db.collection('tasks').where('date','==', key)
-        .onSnapshot(s => {
-          s.docChanges().forEach(ch => {
-            if (ch.type === 'added'){
-              const id = 'tasks-live-'+key+'-'+ch.doc.id;
-              addItem(id, `
-                <div class="p-2 border-bottom small">
-                  <i class="bi bi-list-task me-1 text-orange"></i>
-                  Nova tarefa adicionada para hoje
-                </div>
-              `, key);
-            }
-          });
+        const currentBatch = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const createdAt = data.createdAt ? data.createdAt.toMillis() : 0;
+            currentBatch.push({
+                id: doc.id,
+                type: type,
+                title: data.title || (type === 'complaint' ? 'Nova Sugestão' : 'Nova Tarefa'),
+                date: data.date,
+                createdAt: createdAt,
+                desc: data.description || data.text
+            });
         });
-    }catch(e){ console.warn('notifications: wireDailyTasks failed', e); }
-  }
 
-  async function wireBirthdays(){
-    try{
-      if (!window.db) return;
-      const now = new Date();
-      const d = now.getDate();
-      const m = now.getMonth();
-      state.unsubBirthdays = window.db.collection('birthdays')
-        .where('day','==', d)
-        .where('month','==', m)
-        .onSnapshot(s => {
-          if (s.empty) return;
-          const names = [];
-          s.forEach(doc => { const bd = doc.data()||{}; if (bd.name) names.push(bd.name); });
-          if (names.length === 0) return;
-          const key = todayKey();
-          addItem('birthdays-'+key, `
-            <div class="p-2 border-bottom small">
-              <i class="bi bi-cake2 me-1 text-primary"></i>
-              Aniversários de hoje: ${names.map(n => `<span class=\"badge bg-primary-subtle text-primary me-1\">${escapeHtml(n)}</span>`).join('')}
-            </div>
-          `, key);
-        });
-    }catch(e){ console.warn('notifications: wireBirthdays failed', e); }
-  }
+        this.mergeItems(currentBatch);
+        this.checkTomorrowTasks();
+        this.updateBadge(); // Atualiza número ao chegar dados
+        this.renderList();
+    },
 
-  function canSeeComplaints(){
-    try {
-      const isAdminFn = (typeof window.isAdmin === 'function') ? window.isAdmin : () => false;
-      const getUserFn = (typeof window.getCurrentUserData === 'function') ? window.getCurrentUserData : () => null;
-      const ud = getUserFn();
-      return isAdminFn() || !!(ud && ud.accepted);
-    } catch(e) { return false; }
-  }
+    mergeItems: function(newItems) {
+        const combined = [...newItems, ...this.items];
+        const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
+        this.items = unique.sort((a,b) => b.createdAt - a.createdAt);
+    },
 
-  function clearComplaintItems(){
-    // Remove complaint-related items from the list when unsubscribing
-    state.items = state.items.filter(it => it.key !== 'complaints');
-    state.unreadCount = state.items.filter(i => i.unread).length;
-    setBadge(state.unreadCount);
-    renderList();
-  }
+    checkTomorrowTasks: function() {
+        if (!window.pageCalendarTasks) return;
 
-  function subscribeComplaints(){
-    if (!window.db || state.complaintsSubscribed) return;
-    state.unsubComplaints = window.db.collection('classComplaints')
-      .orderBy('createdAt','desc').limit(10)
-      .onSnapshot(s => {
-        s.docChanges().forEach(ch => {
-          if (ch.type === 'added'){
-            const c = ch.doc.data()||{};
-            const when = c.createdAt && c.createdAt.toDate ? fmtDate(c.createdAt.toDate()) : '';
-            const id = 'complaint-'+ch.doc.id;
-            addItem(id, `
-              <div class="p-2 border-bottom small">
-                <i class="bi bi-chat-dots me-1 text-info"></i>
-                Nova sugestão/reclamação recebida ${when ? '— '+when : ''}
-              </div>
-            `, 'complaints');
-          }
-        });
-      });
-    state.complaintsSubscribed = true;
-  }
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStr = tomorrow.toISOString().split('T')[0];
+        const tasksTomorrow = window.pageCalendarTasks[tomorrowStr];
+        
+        // Define data base como meia-noite de hoje para comparação
+        const reminderTimestamp = new Date().setHours(0,0,0,0);
 
-  function unsubscribeComplaints(){
-    if (state.unsubComplaints) { try { state.unsubComplaints(); } catch{} finally { state.unsubComplaints = null; } }
-    state.complaintsSubscribed = false;
-    clearComplaintItems();
-  }
-
-  async function wireComplaints(){
-    try{
-      if (!window.db) return;
-      if (canSeeComplaints()) subscribeComplaints();
-    }catch(e){ console.warn('notifications: wireComplaints failed', e); }
-  }
-
-  // Expose a refresh hook so other parts (e.g., after userData loads) can re-check access
-  window.notificationsRefreshAccess = function(){
-    if (!window.db) return;
-    if (canSeeComplaints()) {
-      if (!state.complaintsSubscribed) subscribeComplaints();
-    } else {
-      if (state.complaintsSubscribed) unsubscribeComplaints();
-    }
-  };
-
-  function escapeHtml(text){ if(!text && text!==0) return ''; const d=document.createElement('div'); d.textContent = String(text); return d.innerHTML; }
-
-  function init(){
-    // Only on index.html after auth
-    document.addEventListener('DOMContentLoaded', () => {
-      const markAllBtn = el('markAllNotificationsRead');
-      if (markAllBtn) markAllBtn.addEventListener('click', onMarkAllClick);
-  // Ensure we don't keep the initial "Carregando..." forever
-  renderList();
-      // Also render when dropdown is opened (Bootstrap 5 custom event)
-      const bellBtn = el('notificationsButton');
-      if (bellBtn) {
-        bellBtn.addEventListener('show.bs.dropdown', renderList);
-        bellBtn.addEventListener('click', () => setTimeout(renderList, 0)); // fallback
-      }
-    });
-
-    // Show bell when user is authenticated
-    if (typeof firebase !== 'undefined'){
-      firebase.auth().onAuthStateChanged(user => {
-        if (user){
-          ensureVisible();
-          // Replace loading placeholder with empty state if no items yet
-          renderList();
-          // Start wiring sources
-          wireDailyTasks();
-          wireBirthdays();
-          wireComplaints();
-          // Re-check access again shortly in case userData wasn't ready yet
-          setTimeout(() => { if (typeof window.notificationsRefreshAccess === 'function') window.notificationsRefreshAccess(); }, 800);
+        if (tasksTomorrow && tasksTomorrow.length > 0) {
+            tasksTomorrow.forEach(t => {
+                this.items = this.items.filter(i => i.id !== 'remind-' + t.id);
+                this.items.unshift({
+                    id: 'remind-' + t.id,
+                    type: 'reminder',
+                    title: 'Lembrete: ' + t.title,
+                    createdAt: reminderTimestamp,
+                    desc: 'Esta tarefa é para amanhã!'
+                });
+            });
         }
-      });
-    }
+        this.items.sort((a,b) => b.createdAt - a.createdAt);
+    },
 
-    // If DOM is already ready (script loaded late), render once
-    if (document.readyState === 'interactive' || document.readyState === 'complete') {
-      renderList();
-    }
-  }
+    updateBadge: function() {
+        let count = 0;
+        this.items.forEach(item => {
+            if (item.createdAt > this.lastViewed) count++;
+        });
 
-  init();
-})();
+        const badge = document.getElementById('bottomNavBadge');
+        if (badge) {
+            if (count > 0) {
+                badge.style.display = 'flex';
+                badge.textContent = count > 9 ? '9+' : count;
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+    },
+
+    markAllAsRead: function() {
+        // 1. Atualiza timestamp
+        this.lastViewed = Date.now();
+        localStorage.setItem('notificationsLastViewed', this.lastViewed);
+        
+        // 2. FORÇA VISUAL IMEDIATA: Esconde a bolinha na hora
+        const badge = document.getElementById('bottomNavBadge');
+        if(badge) {
+            badge.style.display = 'none';
+            badge.textContent = '0';
+        }
+
+        // 3. Atualiza lista para remover destaques
+        this.renderList();
+    },
+
+    renderList: function() {
+        const list = document.getElementById('mobileNotificationsList');
+        if (!list) return;
+
+        if (this.items.length === 0) {
+            list.innerHTML = '<div class="text-center text-muted py-5"><i class="bi bi-bell-slash fs-1"></i><p class="mt-2">Sem notificações</p></div>';
+            return;
+        }
+
+        let html = '';
+        this.items.forEach(item => {
+            let icon = 'bi-info-circle'; let color = 'primary';
+            if (item.type === 'task') { icon = 'bi-journal-plus'; color = 'success'; } 
+            else if (item.type === 'complaint') { icon = 'bi-chat-left-text'; color = 'warning'; } 
+            else if (item.type === 'reminder') { icon = 'bi-alarm'; color = 'danger'; }
+
+            const isUnread = item.createdAt > this.lastViewed;
+            const bgClass = isUnread ? 'bg-white bg-opacity-10 border-orange' : 'bg-transparent border-secondary';
+            
+            html += `
+            <div class="card mb-2 ${bgClass}" style="transition:0.3s">
+                <div class="card-body p-3 d-flex gap-3 align-items-start">
+                    <div class="bg-${color} bg-opacity-25 text-${color} rounded-circle p-2 d-flex align-items-center justify-content-center" style="width:40px;height:40px;min-width:40px;">
+                        <i class="bi ${icon}"></i>
+                    </div>
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="fw-bold text-white mb-1">${item.title}</h6>
+                            ${isUnread ? '<span class="badge bg-danger ms-2" style="font-size:0.5rem">NOVO</span>' : ''}
+                        </div>
+                        <p class="text-muted small mb-1">${item.desc || ''}</p>
+                        <small class="text-secondary" style="font-size:0.7rem">
+                            ${new Date(item.createdAt).toLocaleDateString('pt-BR')} às ${new Date(item.createdAt).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}
+                        </small>
+                    </div>
+                </div>
+            </div>`;
+        });
+        list.innerHTML = html;
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => window.notificationSystem.init(), 1500);
+});

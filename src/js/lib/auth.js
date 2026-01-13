@@ -13,23 +13,14 @@ class AuthSystem {
     // INICIALIZAÇÃO DO SISTEMA
     // ========================================
     init() {
-        // Verificar se estamos na página de login antes de tentar acessar elementos
         if (this.isLoginPage()) {
             this.initLoginElements();
         }
 
-        // ========================================
-        // OBSERVADOR DE ESTADO DE AUTENTICAÇÃO
-        // ========================================
-        // Verificar se já está logado
         this.auth.onAuthStateChanged(async (user) => {
             if (user) {
                 this.currentUser = user;
-                
-                // Verificar se a conta está bloqueada
                 await this.checkUserStatus(user);
-                
-                // Redirecionar se estiver na página de login
                 if (this.isLoginPage()) {
                     this.redirectToApp();
                 }
@@ -37,18 +28,11 @@ class AuthSystem {
         });
     }
 
-    // ========================================
-    // VERIFICAÇÕES DE PÁGINA
-    // ========================================
     isLoginPage() {
         return document.getElementById('authForm') !== null;
     }
 
-    // ========================================
-    // INICIALIZAÇÃO DOS ELEMENTOS DE LOGIN
-    // ========================================
     initLoginElements() {
-        // Elementos do DOM (apenas para página de login)
         this.authForm = document.getElementById('authForm');
         this.emailInput = document.getElementById('email');
         this.passwordInput = document.getElementById('password');
@@ -62,15 +46,13 @@ class AuthSystem {
         this.loadingOverlay = document.getElementById('loadingOverlay');
         this.confirmPasswordGroup = document.getElementById('confirmPasswordGroup');
         this.nameGroup = document.getElementById('nameGroup');
-    this.matriculaGroup = document.getElementById('matriculaGroup');
-    this.matriculaInput = document.getElementById('registrationMatricula');
+        this.matriculaGroup = document.getElementById('matriculaGroup');
+        this.matriculaInput = document.getElementById('registrationMatricula');
 
-        // Event listeners apenas se estamos na página de login
         this.setupEventListeners();
     }
 
     setupEventListeners() {
-        // Verificar se os elementos existem antes de adicionar listeners (defensivo)
         try {
             if (this.authForm) {
                 this.authForm.addEventListener('submit', (e) => {
@@ -78,31 +60,12 @@ class AuthSystem {
                     this.handleFormSubmit();
                 });
             }
-        } catch (err) {
-            console.warn('Falha ao adicionar listener em authForm:', err);
-        }
-
-        try {
             if (this.isRegisterModeCheckbox) {
-                this.isRegisterModeCheckbox.addEventListener('change', () => {
-                    this.toggleMode();
-                });
+                this.isRegisterModeCheckbox.addEventListener('change', () => this.toggleMode());
             }
-        } catch (err) {
-            console.warn('Falha ao adicionar listener em isRegisterModeCheckbox:', err);
-        }
-
-        try {
             if (this.togglePasswordBtn) {
-                this.togglePasswordBtn.addEventListener('click', () => {
-                    this.togglePasswordVisibility();
-                });
+                this.togglePasswordBtn.addEventListener('click', () => this.togglePasswordVisibility());
             }
-        } catch (err) {
-            console.warn('Falha ao adicionar listener em togglePasswordBtn:', err);
-        }
-
-        try {
             if (this.forgotPasswordLink) {
                 this.forgotPasswordLink.addEventListener('click', (e) => {
                     e.preventDefault();
@@ -110,7 +73,7 @@ class AuthSystem {
                 });
             }
         } catch (err) {
-            console.warn('Falha ao adicionar listener em forgotPasswordLink:', err);
+            console.warn('Falha ao adicionar listeners:', err);
         }
     }
 
@@ -139,7 +102,6 @@ class AuthSystem {
     togglePasswordVisibility() {
         const type = this.passwordInput.type === 'password' ? 'text' : 'password';
         this.passwordInput.type = type;
-        
         const icon = this.togglePasswordBtn.querySelector('i');
         icon.className = type === 'password' ? 'bi bi-eye' : 'bi bi-eye-slash';
     }
@@ -149,7 +111,6 @@ class AuthSystem {
         const password = this.passwordInput.value;
         const isRegister = this.isRegisterModeCheckbox.checked;
 
-        // Validações básicas
         if (!email || !password) {
             this.showAlert('Por favor, preencha todos os campos obrigatórios.', 'warning');
             return;
@@ -169,15 +130,10 @@ class AuthSystem {
 
     async handleLogin(email, password) {
         this.showLoading(true);
-        
         try {
             const userCredential = await this.auth.signInWithEmailAndPassword(email, password);
             this.showAlert('Login realizado com sucesso!', 'success');
-            
-            // Verificar dados do usuário no Firestore
             await this.checkUserData(userCredential.user);
-            
-            // Redirecionar será feito pelo onAuthStateChanged
         } catch (error) {
             console.error('Erro no login:', error);
             this.showAlert(this.getErrorMessage(error.code), 'danger');
@@ -189,9 +145,8 @@ class AuthSystem {
     async handleRegister(email, password) {
         const confirmPassword = this.confirmPasswordInput.value;
         const fullName = this.fullNameInput.value.trim();
-    const matricula = (this.matriculaInput?.value || '').trim();
+        const matricula = (this.matriculaInput?.value || '').trim();
 
-        // Validações adicionais para registro
         if (password !== confirmPassword) {
             this.showAlert('As senhas não coincidem.', 'warning');
             return;
@@ -210,23 +165,21 @@ class AuthSystem {
         this.showLoading(true);
 
         try {
-            // Criar usuário no Firebase Auth
+            // Validar matrícula antes de criar conta no Auth
+            const accepted = await this.isMatriculaAccepted(matricula);
+            
+            // Se você quiser BLOQUEAR o registro de matrículas não aceitas, descomente a linha abaixo:
+            // if (!accepted) throw new Error('Matrícula não autorizada.');
+
             const userCredential = await this.auth.createUserWithEmailAndPassword(email, password);
             const user = userCredential.user;
 
-            // Atualizar perfil com nome
-            await user.updateProfile({
-                displayName: fullName
-            });
-
-            // Criar documento do usuário no Firestore
-            // Validar matrícula contra a lista de aceitas
-            const accepted = await this.isMatriculaAccepted(matricula);
+            await user.updateProfile({ displayName: fullName });
 
             await this.createUserDocument(user, {
                 fullName: fullName,
                 email: email,
-                role: 'user', // Por padrão, novos usuários são 'user'
+                role: 'user',
                 matricula: matricula,
                 accepted: accepted === true,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -234,44 +187,43 @@ class AuthSystem {
             });
 
             this.showAlert('Conta criada com sucesso!', 'success');
-            
-            // Redirecionar será feito pelo onAuthStateChanged
         } catch (error) {
             console.error('Erro no registro:', error);
-            this.showAlert(this.getErrorMessage(error.code), 'danger');
+            const msg = error.message === 'Matrícula não autorizada.' ? error.message : this.getErrorMessage(error.code);
+            this.showAlert(msg, 'danger');
         } finally {
             this.showLoading(false);
         }
     }
 
-    // Checa se a matrícula está na lista de aceitas
+    /**
+     * Verifica se a matrícula é aceita.
+     * VERSÃO SEGURA: Busca direta pelo documento ID em vez de listar todos.
+     */
     async isMatriculaAccepted(matricula) {
+        if (!matricula) return false;
         try {
-            // Suportar duas estruturas: coleção 'matriculas_aceitas' com docs {numero}, ou doc único 'config/matriculas_aceitas' com array
-            // 1) Coleção
-            const colRef = this.db.collection('matriculas_aceitas');
-            const snap = await colRef.limit(1).get();
-            if (!snap.empty) {
-                const docRef = await this.db.collection('matriculas_aceitas').doc(matricula).get();
-                if (docRef.exists) return true;
+            // Verifica na coleção 'matriculas_aceitas' procurando pelo DOC ID igual à matrícula
+            const docRef = await this.db.collection('matriculas_aceitas').doc(matricula).get();
+            
+            if (docRef.exists) {
+                // Se o documento existe, a matrícula é válida
+                return true;
             }
-            // 2) Documento único com array
-            const cfgDoc = await this.db.collection('config').doc('matriculas_aceitas').get();
-            if (cfgDoc.exists) {
-                const data = cfgDoc.data();
-                const arr = Array.isArray(data?.lista) ? data.lista : (Array.isArray(data?.matriculas) ? data.matriculas : null);
-                if (arr && arr.includes(matricula)) return true;
-            }
+            
+            // Fallback opcional para coleção 'matriculas' (se estiver usando outro nome)
+            // ou retornar falso imediatamente para máxima segurança.
+            console.log('Matrícula não encontrada na base de aceitas:', matricula);
+            return false;
         } catch (e) {
-            console.warn('Falha ao checar matriculas_aceitas:', e);
+            console.error('Erro ao validar matrícula:', e);
+            return false;
         }
-        return false;
     }
 
     async createUserDocument(user, userData) {
         try {
             await this.db.collection('users').doc(user.uid).set(userData);
-            console.log('Documento do usuário criado com sucesso');
         } catch (error) {
             console.error('Erro ao criar documento do usuário:', error);
             throw error;
@@ -281,9 +233,7 @@ class AuthSystem {
     async checkUserData(user) {
         try {
             const userDoc = await this.db.collection('users').doc(user.uid).get();
-            
             if (!userDoc.exists) {
-                // Se o documento não existe, criar um com dados básicos
                 await this.createUserDocument(user, {
                     fullName: user.displayName || 'Usuário',
                     email: user.email,
@@ -292,7 +242,6 @@ class AuthSystem {
                     lastLogin: firebase.firestore.FieldValue.serverTimestamp()
                 });
             } else {
-                // Atualizar último login
                 await this.db.collection('users').doc(user.uid).update({
                     lastLogin: firebase.firestore.FieldValue.serverTimestamp()
                 });
@@ -303,20 +252,13 @@ class AuthSystem {
     }
 
     async checkUserStatus(user) {
-        // Evitar verificações simultâneas
-        if (window.isCheckingBlockedAccount) {
-            return;
-        }
-        
+        if (window.isCheckingBlockedAccount) return;
         window.isCheckingBlockedAccount = true;
         
         try {
             const userDoc = await this.db.collection('users').doc(user.uid).get();
-            
             if (userDoc.exists) {
                 const userData = userDoc.data();
-                
-                // Se a conta está bloqueada, mostrar tela de bloqueio
                 if (userData.disabled === true) {
                     this.showBlockedAccountScreen(user, userData);
                     return;
@@ -325,19 +267,14 @@ class AuthSystem {
         } catch (error) {
             console.error('Erro ao verificar status do usuário:', error);
         } finally {
-            // Reset flag após verificação
-            setTimeout(() => {
-                window.isCheckingBlockedAccount = false;
-            }, 2000);
+            setTimeout(() => { window.isCheckingBlockedAccount = false; }, 2000);
         }
     }
 
     showBlockedAccountScreen(user, userData) {
-        // Store blocked info and redirect to dedicated blocked page
         try {
             sessionStorage.setItem('blockedUid', user.uid);
             sessionStorage.setItem('blockedEmail', user.email || (userData && userData.email) || '');
-            // Avoid navigation loop: if already on blocked.html, just set the blocked flow flag
             const currentPage = window.location.pathname.split('/').pop() || 'index.html';
             if (currentPage === 'blocked.html') {
                 try { sessionStorage.setItem('blockedFlowActive', '1'); } catch (e) {}
@@ -347,162 +284,58 @@ class AuthSystem {
             window.location.href = 'blocked.html';
             window.allowRedirect = false;
         } catch (e) {
-            console.error('Erro ao redirecionar para blocked.html:', e);
+            console.error('Erro ao redirecionar:', e);
             this.createBlockedAccountModal(user, userData);
         }
     }
 
     createBlockedAccountModal(user, userData) {
-        // Remove modal existente se houver
+        // ... (Mesma implementação do original para manter compatibilidade caso redirecionamento falhe) ...
         const existingModal = document.getElementById('blockedAccountModal');
-        if (existingModal) {
-            existingModal.remove();
-        }
-
-        // Definir flag global
+        if (existingModal) existingModal.remove();
         window.isBlockedAccountModalActive = true;
-
         const modalHTML = `
-            <div class="modal fade show" id="blockedAccountModal" tabindex="-1" 
-                 style="display: block !important; background: rgba(0,0,0,0.9); z-index: 9999;">
+            <div class="modal fade show" id="blockedAccountModal" tabindex="-1" style="display: block !important; background: rgba(0,0,0,0.9); z-index: 9999;">
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content border-danger">
-                        <div class="modal-header bg-danger text-white">
-                            <h5 class="modal-title">
-                                <i class="bi bi-exclamation-triangle me-2"></i>
-                                Conta Bloqueada
-                            </h5>
-                        </div>
+                        <div class="modal-header bg-danger text-white"><h5 class="modal-title">Conta Bloqueada</h5></div>
                         <div class="modal-body text-center py-4">
-                            <div class="mb-4">
-                                <i class="bi bi-lock-fill text-danger" style="font-size: 4rem;"></i>
-                            </div>
-                            <h4 class="text-danger mb-3">Sua conta foi bloqueada</h4>
-                            <p class="mb-4">
-                                Sua conta (<strong>${user.email}</strong>) foi bloqueada por um administrador.
-                                Isso pode ter ocorrido devido a violações das políticas de uso ou outras questões administrativas.
-                            </p>
-                            <div class="alert alert-warning">
-                                <strong>Opções:</strong><br>
-                                Você pode solicitar a exclusão completa da sua conta e dados abaixo.
-                            </div>
+                            <h4 class="text-danger">Sua conta foi bloqueada</h4>
+                            <p>Entre em contato com o administrador.</p>
                         </div>
                         <div class="modal-footer justify-content-center">
-                                <button type="button" class="btn btn-danger me-2" id="deleteAccountBtn">
-                                    <i class="bi bi-trash me-2"></i>Excluir minha conta e dados
-                                </button>
-                                <button type="button" class="btn btn-primary" id="goToLoginBtn">
-                                    <i class="bi bi-arrow-left me-2"></i>Voltar ao Login
-                                </button>
+                             <button class="btn btn-primary" id="goToLoginBtn">Voltar ao Login</button>
                         </div>
                     </div>
                 </div>
-            </div>
-        `;
-
+            </div>`;
         document.body.insertAdjacentHTML('beforeend', modalHTML);
-        
-        // Adicionar event listener para o botão de exclusão
-        const deleteBtn = document.getElementById('deleteAccountBtn');
-        if (deleteBtn) {
-            deleteBtn.addEventListener('click', async () => {
-                const ok = confirm('Tem certeza? Isso removerá permanentemente seus dados e a conta do Authentication quando possível.');
-                if (!ok) return;
-                const user = firebase.auth().currentUser;
-                if (!user) {
-                    alert('Você precisa estar autenticado para excluir sua conta. Entre em contato com o administrador se necessário.');
-                    return;
-                }
-                await window.deleteAccountCompletely(user.uid);
-            });
-        }
-
-        // Adicionar event listener para o botão voltar ao login
         document.getElementById('goToLoginBtn').addEventListener('click', () => {
             window.isBlockedAccountModalActive = false;
-            window.allowRedirect = true; // Permitir redirecionamento
-            // Sign out if still signed in
-                if (firebase.auth().currentUser) {
-                firebase.auth().signOut().catch(()=>{}).finally(()=>{
-                    safeNavigate('login.html', true);
-                    window.allowRedirect = false; // Resetar flag
-                });
+            window.allowRedirect = true;
+            if (firebase.auth().currentUser) {
+                firebase.auth().signOut().then(() => { window.location.href = 'login.html'; });
             } else {
-                safeNavigate('login.html', true);
-                window.allowRedirect = false;
+                window.location.href = 'login.html';
             }
         });
-        
-        // Prevenir fechamento do modal por cliques ou teclas
-        const modal = document.getElementById('blockedAccountModal');
-        modal.addEventListener('click', (e) => {
-            e.stopPropagation();
-            e.preventDefault();
-        });
-        
-        // Desabilitar tecla ESC
-        document.addEventListener('keydown', function preventEscape(e) {
-            if (e.key === 'Escape') {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-        });
-        
-        // Garantir que o modal permaneça visível
-        setTimeout(() => {
-            const modalCheck = document.getElementById('blockedAccountModal');
-            if (modalCheck) {
-                modalCheck.style.display = 'block';
-                modalCheck.style.zIndex = '9999';
-            }
-        }, 100);
     }
 
     async handleForgotPassword() {
-        // Redirect to dedicated reset page and prefill email if available
         const email = (this.emailInput && this.emailInput.value) ? this.emailInput.value.trim() : '';
         const target = 'reset-password.html' + (email ? ('?email=' + encodeURIComponent(email)) : '');
-        try {
-            window.location.href = target;
-        } catch (e) {
-            // fallback: attempt to send directly
-            if (!email) {
-                this.showAlert('Por favor, digite seu email primeiro.', 'warning');
-                return;
-            }
-            try {
-                await this.auth.sendPasswordResetEmail(email);
-                this.showAlert('Email de recuperação enviado! Verifique sua caixa de entrada.', 'success');
-            } catch (error) {
-                console.error('Erro ao enviar email de recuperação:', error);
-                this.showAlert(this.getErrorMessage(error.code), 'danger');
-            }
-        }
+        try { window.location.href = target; } catch (e) {}
     }
 
     redirectToApp() {
-        // Redirecionar para a página principal
         window.location.href = 'index.html';
     }
 
     showAlert(message, type) {
         const alertId = 'alert-' + Date.now();
-        const alertHTML = `
-            <div class="alert alert-${type} alert-dismissible fade show" role="alert" id="${alertId}">
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        `;
-        
+        const alertHTML = `<div class="alert alert-${type} alert-dismissible fade show" role="alert" id="${alertId}">${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
         this.alertContainer.innerHTML = alertHTML;
-        
-        // Auto-remover após 5 segundos
-        setTimeout(() => {
-            const alertElement = document.getElementById(alertId);
-            if (alertElement) {
-                alertElement.remove();
-            }
-        }, 5000);
+        setTimeout(() => { const el = document.getElementById(alertId); if (el) el.remove(); }, 5000);
     }
 
     showLoading(show) {
@@ -516,88 +349,38 @@ class AuthSystem {
     }
 
     getErrorMessage(errorCode) {
-        const errorMessages = {
-            'auth/user-not-found': 'Usuário não encontrado. Verifique o email ou crie uma nova conta.',
-            'auth/wrong-password': 'Senha incorreta. Tente novamente.',
-            'auth/email-already-in-use': 'Este email já está sendo usado por outra conta.',
-            'auth/weak-password': 'A senha é muito fraca. Use pelo menos 6 caracteres.',
-            'auth/invalid-email': 'Email inválido. Verifique o formato do email.',
-            'auth/too-many-requests': 'Muitas tentativas. Tente novamente mais tarde.',
-            'auth/network-request-failed': 'Erro de conexão. Verifique sua internet.',
-            'auth/user-disabled': 'Esta conta foi desabilitada.',
-            'auth/operation-not-allowed': 'Operação não permitida.',
-            'auth/invalid-credential': 'Credenciais inválidas. Verifique email e senha.',
-            'default': 'Ocorreu um erro inesperado. Tente novamente.'
+        const messages = {
+            'auth/user-not-found': 'Usuário não encontrado.',
+            'auth/wrong-password': 'Senha incorreta.',
+            'auth/email-already-in-use': 'Email já em uso.',
+            'auth/weak-password': 'Senha muito fraca.',
+            'auth/invalid-email': 'Email inválido.',
+            'default': 'Ocorreu um erro inesperado.'
         };
-
-        return errorMessages[errorCode] || errorMessages['default'];
+        return messages[errorCode] || messages['default'];
     }
 }
 
-// Verificar se os elementos existem antes de inicializar
 document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('authForm')) {
         window.authSystem = new AuthSystem();
     }
 });
 
-// Função global para logout (será usada em outras páginas)
+// Helpers globais
 window.logout = async function() {
     try {
-        // If blocked flow is active, avoid redirecting to login (let blocked page handle it)
         if (sessionStorage.getItem('blockedUid')) {
-            console.log('Blocked flow active - logout will not redirect to login');
             await firebase.auth().signOut();
             return;
         }
-    await firebase.auth().signOut();
-    safeNavigate('login.html', true);
-    } catch (error) {
-        console.error('Erro ao fazer logout:', error);
-    }
+        await firebase.auth().signOut();
+        window.location.href = 'login.html';
+    } catch (error) { console.error('Erro logout:', error); }
 };
 
-// Função global para verificar se usuário está logado
 window.checkAuth = function() {
     return new Promise((resolve, reject) => {
-        firebase.auth().onAuthStateChanged((user) => {
-            if (user) {
-                resolve(user);
-            } else {
-                reject('Usuário não está logado');
-            }
-        });
+        firebase.auth().onAuthStateChanged((user) => user ? resolve(user) : reject('Não logado'));
     });
-};
-
-// Função global para obter dados do usuário atual
-window.getCurrentUserData = async function() {
-    try {
-        const user = firebase.auth().currentUser;
-        if (!user) throw new Error('Usuário não está logado');
-
-        const userDoc = await firebase.firestore().collection('users').doc(user.uid).get();
-        if (!userDoc.exists) throw new Error('Dados do usuário não encontrados');
-
-        return {
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName,
-            ...userDoc.data()
-        };
-    } catch (error) {
-        console.error('Erro ao obter dados do usuário:', error);
-        throw error;
-    }
-};
-
-// Função global para verificar se é administrador
-window.isAdmin = async function() {
-    try {
-        const userData = await getCurrentUserData();
-        return userData.role === 'admin';
-    } catch (error) {
-        console.error('Erro ao verificar se é admin:', error);
-        return false;
-    }
 };

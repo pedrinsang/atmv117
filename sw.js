@@ -1,4 +1,4 @@
-const CACHE_NAME = 'atmv117-v1.0.1';
+const CACHE_NAME = 'atmv117-v2';
 const urlsToCache = [
     '/',
     '/index.html',

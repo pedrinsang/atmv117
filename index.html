@@ -1,680 +1,231 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <!-- ========================================
-         CONFIGURAÇÕES BÁSICAS DA PÁGINA
-    ======================================== -->
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Organizador de Tarefas - Turma ATMV 117</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ATMV 117 - Organizador</title>
     
-    <!-- ========================================
-         BIBLIOTECAS EXTERNAS CSS
-    ======================================== -->
-    <!-- Bootstrap CSS Framework -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
-    
-    <!-- ========================================
-         ESTILOS CUSTOMIZADOS
-    ======================================== -->
-    <!-- Estilos principais da aplicação -->
-    <link rel="stylesheet" href="src/css/styles.css?v=1749688002735.0.0">
-    <!-- Estilos específicos de autenticação -->
-    <link rel="stylesheet" href="src/css/auth-styles.css">
-    <!-- Flatpickr CSS for datepicker (Brazilian format) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     
-    <!-- ========================================
-         CONFIGURAÇÕES PWA (Progressive Web App)
-    ======================================== -->
-    <!-- Manifest da aplicação -->
+    <link rel="stylesheet" href="src/css/styles.css?v=17.0">
+    <link rel="stylesheet" href="src/css/auth-styles.css">
+    
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#ff6b35">
-    
-    <!-- ========================================
-         CONFIGURAÇÕES PARA iOS
-    ======================================== -->
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Organizador Tarefas">
-    
-    <!-- ========================================
-         ÍCONES E FAVICONS
-    ======================================== -->
+    <meta name="theme-color" content="#121214">
     <link rel="icon" type="image/png" sizes="192x192" href="src/img/icon-192.png">
-    <link rel="apple-touch-icon" href="src/img/icon-192.png">
-
-    <!-- ========================================
-         CONFIGURAÇÕES DE CACHE
-    ======================================== -->
-    <!-- Evita cache do navegador para desenvolvimento -->
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-    
-    <!-- ========================================
-         POLÍTICA DE SEGURANÇA DE CONTEÚDO
-    ======================================== -->
-    <!-- CSP para controle de recursos externos -->
-    <meta http-equiv="Content-Security-Policy" content="
-        default-src 'self'; 
-        script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://cdn.jsdelivr.net; 
-        style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; 
-        font-src 'self' https://cdn.jsdelivr.net; 
-        img-src 'self' data: https:; 
-        connect-src 'self' https://firestore.googleapis.com https://atmv117.firebaseapp.com https://api.github.com https://raw.githubusercontent.com https://securetoken.googleapis.com https://www.googleapis.com https://identitytoolkit.googleapis.com https://accounts.google.com;
-    ">
 </head>
 <body>
-    <!-- ========================================
-         BARRA LATERAL DE NAVEGAÇÃO
-    ======================================== -->
+
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h5>ATMV 117</h5>
-            <button class="sidebar-close" onclick="toggleSidebar()">
-                <i class="bi bi-x-lg"></i>
-            </button>
+            <h5 class="text-white mb-0">Dados da Turma</h5>
+            <button class="sidebar-close text-white" onclick="toggleSidebar()"><i class="bi bi-x-lg"></i></button>
         </div>
-        <ul class="sidebar-menu">
-            <!-- Menu: Lista de Tarefas -->
-            <li class="menu-item active" data-page="lista">
-                <a href="#" onclick="navigateToPage('lista')">
-                    <i class="bi bi-list-task"></i>
-                    <span>Lista</span>
+        <ul class="sidebar-menu mt-3">
+            <li class="menu-item active has-submenu open" data-page="dados">
+                <a href="#" onclick="event.preventDefault();" style="cursor: default; opacity: 0.8;">
+                    <i class="bi bi-folder2-open" style="margin-right: 10px;"></i> Acesso Rápido
                 </a>
-            </li>
-            <!-- Menu: Calendário -->
-            <li class="menu-item" data-page="calendario">
-                <a href="#" onclick="navigateToPage('calendario')">
-                    <i class="bi bi-calendar3"></i>
-                    <span>Calendário</span>
-                </a>
-            </li>
-            <!-- Menu: Dados da Turma com submenu -->
-            <li class="menu-item has-submenu" data-page="dados">
-                <a href="#" onclick="toggleSubmenu('dados'); event.preventDefault();">
-                    <i class="bi bi-people"></i>
-                    <span>Dados da Turma</span>
-                    <i class="bi bi-chevron-down submenu-arrow"></i>
-                </a>
-                <ul class="submenu">
-                    <li class="submenu-item" data-page="links">
-                        <a href="#" onclick="navigateToPage('links'); event.preventDefault();">
-                            <i class="bi bi-link-45deg"></i>
-                            <span>Links</span>
-                        </a>
-                    </li>                    
-                    <li class="submenu-item" data-page="sugestoes">
-                        <a href="#" onclick="navigateToPage('sugestoes'); event.preventDefault();">
-                            <i class="bi bi-chat-text"></i>
-                            <span>Sugestões/Reclamações</span>
-                        </a>
-                    </li>
-                    <li class="submenu-item" data-page="aniversarios">
-                        <a href="#" onclick="navigateToPage('aniversarios'); event.preventDefault();">
-                            <i class="bi bi-calendar-heart"></i>
-                            <span>Aniversários</span>
-                        </a>
-                    </li>
+                <ul class="submenu" style="max-height: 500px;">
+                    <li class="submenu-item" data-page="links"><a href="#" onclick="navigateToPage('links')">Links Úteis</a></li>
+                    <li class="submenu-item" data-page="sugestoes"><a href="#" onclick="navigateToPage('sugestoes')">Sugestões</a></li>
+                    <li class="submenu-item" data-page="aniversarios"><a href="#" onclick="navigateToPage('aniversarios')">Aniversariantes</a></li>
                 </ul>
             </li>
         </ul>
+        <div class="p-3 mt-auto border-top border-secondary">
+             <button class="btn btn-outline-danger w-100 btn-sm rounded-pill" onclick="logout()">
+                <i class="bi bi-box-arrow-left"></i> Sair
+             </button>
+        </div>
     </div>
-
-    <!-- ========================================
-         OVERLAY DA BARRA LATERAL
-    ======================================== -->
     <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
-    <!-- ========================================
-         CABEÇALHO PRINCIPAL
-    ======================================== -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-orange">
+    <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
         <div class="container">
-            <!-- Botão de menu hambúrguer -->
-            <button class="btn btn-outline-light me-2" onclick="toggleSidebar()" id="menuToggle">
-                <i class="bi bi-list"></i>
-            </button>
-            
-            <!-- Logo da aplicação -->
-            <a class="navbar-brand fw-bold" href="#">
-                <i class="bi bi-calendar-check brand-icon me-2" aria-hidden="true"></i>
-                <span class="brand-text">ATMV 117</span>
+            <a class="navbar-brand d-flex align-items-center" href="#">
+                <img src="src/img/Lobo-transparente.png" alt="Logo" class="brand-icon">
+                <span>ATMV 117</span>
             </a>
-            
-            <div class="d-flex align-items-center ms-auto">
-                <!-- Notifications -->
-                <div class="dropdown me-2" id="notificationsDropdown" style="display:none;">
-                    <button class="btn btn-outline-light position-relative" type="button" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false" id="notificationsButton">
-                        <i class="bi bi-bell"></i>
-                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="notificationsBadge" style="display:none;">0</span>
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end p-0">
-                        <li class="px-3 py-2 border-bottom d-flex justify-content-between align-items-center notifications-header">
-                            <span class="fw-semibold">Notificações</span>
-                            <button class="btn btn-sm btn-outline-secondary" id="markAllNotificationsRead">Marcar como lidas</button>
-                        </li>
-                        <li>
-                            <div id="notificationsList" class="p-2" style="max-height: 360px; overflow:auto;">
-                                <div class="text-muted small">Carregando...</div>
-                            </div>
-                        </li>
-                    </ul>
-                </div>
-                <!-- Informações do usuário logado -->
-                <div class="dropdown me-2" id="userDropdown" style="display: none;">
-                    <button class="btn btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                        <i class="bi bi-person-circle me-1"></i>
-                        <span id="userDisplayName">Usuário</span>
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        <li><h6 class="dropdown-header" id="userEmail">usuario@email.com</h6></li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li id="adminPanelOption" style="display: none;">
-                            <a class="dropdown-item" href="admin.html">
-                                <i class="bi bi-shield-check me-2"></i>Painel Admin
-                            </a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item" href="#" onclick="logout()">
-                                <i class="bi bi-box-arrow-right me-2"></i>Sair
-                            </a>
-                        </li>
-                    </ul>
-                </div>
 
-                <!-- Install PWA Button -->
-                <button class="btn btn-outline-light" id="installPwaBtn" style="display:none;">
-                    <i class="bi bi-download"></i> <span class="btn-label">Instalar App</span>
-                </button>
-                
-                <!-- diagnostic button removed -->
+            <div class="d-flex align-items-center ms-auto gap-3">
+                <div class="dropdown" id="userDropdown">
+                    <button class="btn btn-link text-white p-0 d-flex align-items-center text-decoration-none" data-bs-toggle="dropdown">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold" style="width: 32px; height: 32px; font-size: 0.9rem; background-color: var(--orange-primary);">
+                            <i class="bi bi-person"></i>
+                        </div>
+                        <span class="d-none d-lg-block ms-2 small fw-bold text-white" id="navbarUserName" style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">...</span>
+                    </button>
+                    
+                    <ul class="dropdown-menu dropdown-menu-end" style="background-color: #1e1e1e;">
+                        <li class="px-3 py-2 text-muted small" id="userEmail">email@user.com</li>
+                        <li><hr class="dropdown-divider bg-secondary"></li>
+                        <li id="adminPanelOption" style="display:none;"><a class="dropdown-item" style="color: var(--orange-primary);" href="admin.html"><i class="bi bi-shield-lock me-2" style="color: var(--orange-primary);"></i> Admin</a></li>
+                        <li><a class="dropdown-item text-danger" href="#" onclick="logout()"><i class="bi bi-box-arrow-right me-2"></i> Sair</a></li>
+                    </ul>
+                </div>
             </div>
         </div>
     </nav>
 
-    <!-- Main Content -->
     <div class="main-content">
-        <div class="container mt-4">
-            <!-- Lista Page (Default) -->
+        <div class="container">
             <div id="listaPage" class="page-content active">
-                <div class="row">
-                    <div class="col-12">
-                        <h2 class="text-orange mb-3">
-                            Tarefas de <span id="currentMonthName"></span>
-                        </h2>
-                        
-                        <!-- Tabs for Task View -->
-                        <ul class="nav nav-tabs mb-3" id="tasksTabs" role="tablist">
-                          <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="month-tab" data-bs-toggle="tab" data-bs-target="#monthTasks" type="button" role="tab">Mês</button>
-                          </li>
-                          <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="week-tab" data-bs-toggle="tab" data-bs-target="#weekTasks" type="button" role="tab">Semana</button>
-                          </li>
-                        </ul>
-                        <div class="tab-content">
-                          <div class="tab-pane fade show active" id="monthTasks" role="tabpanel">
-                            <div id="tasksList" class="row"></div>
-                          </div>
-                          <div class="tab-pane fade" id="weekTasks" role="tabpanel">
-                            <div id="tasksWeekList" class="row"></div>
-                          </div>
-                        </div>
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h2 class="fw-bold text-white mb-0">Olá, <span class="text-orange" id="userNameTitle">Veterinário</span>!</h2>
+                        <p class="text-muted small mb-0">Veja suas pendências veterinárias</p>
                     </div>
+                </div>
+                <ul class="nav nav-pills mb-4 gap-2" id="tasksTabs" role="tablist">
+                    <li class="nav-item flex-fill"><button class="btn w-100 active" id="month-tab" data-bs-toggle="tab" data-bs-target="#monthTasks">Mês</button></li>
+                    <li class="nav-item flex-fill"><button class="btn w-100" id="week-tab" data-bs-toggle="tab" data-bs-target="#weekTasks">Semana</button></li>
+                </ul>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="monthTasks"><div id="tasksList" class="row g-3"></div></div>
+                    <div class="tab-pane fade" id="weekTasks"><div id="tasksWeekList" class="row g-3"></div></div>
                 </div>
             </div>
 
-            <!-- Calendario Page -->
             <div id="calendarioPage" class="page-content">
-                <div class="row">
-                    <div class="col-12">
-                        <h2 class="text-orange mb-3">
-                            <i class="bi bi-calendar3 me-2"></i>Calendário
-                        </h2>
-                        <div class="calendar-page-container">
-                            <div id="calendarPageView" class="calendar-container-page"></div>
-                        </div>
-                    </div>
-                </div>
+                <div id="calendarPageView" class="calendar-page-container"></div>
             </div>
 
-            <!-- Sugestões/Reclamações Page -->
+            <div id="notificacoesPage" class="page-content">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h3 class="fw-bold text-white mb-0"><i class="bi bi-bell text-orange me-2"></i>Avisos</h3>
+                </div>
+                <div id="mobileNotificationsList" class="d-flex flex-column gap-2"></div>
+            </div>
+
             <div id="sugestoesPage" class="page-content">
-                <div class="row">
-                    <div class="col-12">
-                        <h2 class="text-orange mb-3">
-                            <i class="bi bi-chat-text me-2"></i>Sugestões / Reclamações
-                        </h2>
-                        <div class="card bg-dark text-light">
-                            <div class="card-body">
-                                <p class="card-text">Envie uma sugestão de melhoria ou reporte um problema — os administradores receberão a reclamação no painel.</p>
-                                <div id="complaintArea">
-                                    <div class="mb-2">
-                                        <textarea id="complaintText" class="form-control" rows="3" placeholder="Descreva sua sugestão ou reclamação..."></textarea>
-                                    </div>
-                                    <div class="form-text text-white mb-2">
-                                        Observação: sua mensagem é enviada de forma anônima e ficará visível para todos que têm acesso a esta seção.
-                                    </div>
-                                    <div class="d-flex gap-2">
-                                        <button id="btnSubmitComplaint" class="btn btn-outline-orange">Enviar</button>
-                                        <div id="complaintStatus" class="text-success align-self-center" style="display:none">Enviado. Obrigado!</div>
-                                    </div>
-                                </div>
-                                <hr class="border-secondary">
-                                <h6 class="text-orange mb-3"><i class="bi bi-chat-dots me-2"></i>Mensagens da Turma</h6>
-                                <div id="complaintsList">
-                                    <!-- Lista de sugestões/reclamações aparecerá aqui -->
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                <h3 class="mb-4">Sugestões</h3>
+                <div class="card p-3">
+                    <textarea id="complaintText" class="form-control mb-3" rows="4" placeholder="Escreva sua sugestão anônima..."></textarea>
+                    <button id="btnSubmitComplaint" class="btn btn-orange w-100">Enviar</button>
+                    <div id="complaintsList" class="mt-4"></div>
                 </div>
             </div>
-
-            <!-- Links Page -->
             <div id="linksPage" class="page-content">
-                <div class="row">
-                    <div class="col-12">
-                        <h2 class="text-orange mb-3">
-                            <i class="bi bi-link-45deg me-2"></i>Links da Turma
-                        </h2>
-                        <div class="card bg-dark text-light">
-                            <div class="card-body">
-                                <h5 class="card-title text-orange">ATMV 117</h5>
-                                <p class="card-text">Links rápidos para planilhas e materiais da turma. Administradores podem gerenciar os links.</p>
-                                <div id="classLinksArea" class="mb-3">
-                                    <div id="classLinksContainer" class="d-flex flex-wrap gap-3">
-                                        <!-- links serão carregados aqui -->
-                                    </div>
-                                </div>
-
-                                <div id="classLinksAdminControls" style="display:none;" class="mb-3">
-                                    <button id="btnAddClassLink" class="btn btn-orange btn-sm">Novo link</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                <h3 class="mb-4">Links Úteis</h3>
+                <div id="classLinksContainer" class="d-flex flex-wrap gap-3"></div>
+                <div id="classLinksAdminControls" class="mt-3" style="display:none">
+                    <button id="btnAddClassLink" class="btn btn-sm btn-orange"><i class="bi bi-plus"></i> Novo Link</button>
                 </div>
             </div>
-
-            <!-- Aniversários Page -->
             <div id="aniversariosPage" class="page-content">
-                <div class="row">
-                    <div class="col-12">
-                        <h2 class="text-orange mb-3">
-                            <i class="bi bi-calendar-heart me-2"></i>Aniversários da Turma
-                        </h2>
-                        <div class="row">
-                            <div class="col-lg-8">
-                                <div class="card bg-dark text-light mb-3">
-                                    <div class="card-body">
-                                        <h5 class="card-title text-orange">Adicionar Aniversário</h5>
-                                        <div class="mb-3">
-                                            <label for="birthdayName" class="form-label">Seu Nome</label>
-                                            <input type="text" class="form-control" id="birthdayName" placeholder="Digite seu nome">
-                                        </div>
-                                        <div class="mb-3">
-                                            <label for="birthdayDate" class="form-label">Data do Aniversário</label>
-                                            <!-- Use text input + Flatpickr to force dd/mm/aaaa display while keeping a calendar picker -->
-                                            <input type="text" class="form-control" id="birthdayDate" placeholder="dd/mm/aaaa" autocomplete="off">
-                                        </div>
-                                        <button id="btnAddBirthday" class="btn btn-orange">Adicionar Aniversário</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-lg-4">
-                                <div class="card bg-dark text-light">
-                                    <div class="card-body">
-                                        <h5 class="card-title text-orange">Próximos Aniversários</h5>
-                                        <div id="upcomingBirthdays">
-                                            <!-- Lista de próximos aniversários -->
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="row mt-3">
-                            <div class="col-12">
-                                <div class="card bg-dark text-light">
-                                    <div class="card-body">
-                                        <h5 class="card-title text-orange">Todos os Aniversários</h5>
-                                        <div id="allBirthdays" class="row">
-                                            <!-- Lista de todos os aniversários -->
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                <h3 class="mb-4">Aniversários</h3>
+                <div class="card p-3 mb-4">
+                    <h5 class="text-orange">Adicionar Aniversário</h5>
+                    <input type="text" id="birthdayName" class="form-control mb-2" placeholder="Nome">
+                    <input type="text" id="birthdayDate" class="form-control mb-3" placeholder="Data (DD/MM/AAAA)">
+                    <button id="btnAddBirthday" class="btn btn-outline-orange w-100">Salvar</button>
                 </div>
+                <h5 class="mt-4 mb-3">Próximos</h5>
+                <div id="upcomingBirthdays" class="d-flex flex-column gap-2"></div>
+                <h5 class="mt-4 mb-3">Todos</h5>
+                <div id="allBirthdays" class="row g-2"></div>
             </div>
         </div>
     </div>
 
-        <!-- Floating Action Button -->
-    <button id="fabAddTask" class="fab" data-bs-toggle="modal" data-bs-target="#taskModal">
-        <i class="bi bi-plus-lg"></i>
-    </button>
+    <nav class="bottom-nav">
+        <a href="#" class="bottom-nav-item active" onclick="navigateToPage('lista'); return false;" data-nav-target="lista"><i class="bi bi-house-door"></i><span>Início</span></a>
+        <a href="#" class="bottom-nav-item" onclick="navigateToPage('calendario'); return false;" data-nav-target="calendario"><i class="bi bi-calendar4"></i><span>Agenda</span></a>
+        <div class="bottom-nav-fab-container">
+            <div class="bottom-nav-fab" onclick="openAddTaskModal(null, false)"><i class="bi bi-plus-lg"></i></div>
+        </div>
+        <a href="#" class="bottom-nav-item" onclick="navigateToPage('notificacoes'); return false;" data-nav-target="notificacoes">
+            <i class="bi bi-bell"></i><span>Avisos</span>
+            <div class="bottom-nav-badge" id="bottomNavBadge" style="display: none;">0</div> 
+        </a>
+        <a href="#" class="bottom-nav-item" onclick="handleClassDataAccess(); return false;" data-nav-target="turma"><i class="bi bi-people"></i><span>Turma</span></a>
+    </nav>
 
-
-    <!-- Task Modal -->
     <div class="modal fade" id="taskModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <div class="modal-header bg-orange text-white">
-                    <h5 class="modal-title">Adicionar Tarefa</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <div class="modal-header">
+                    <h5 class="modal-title text-white" id="modalTitle">Nova Tarefa</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <form id="taskForm" style="color: black;">
+                    <form id="taskForm">
+                        <input type="hidden" id="taskId">
+                        <input type="hidden" id="taskReopenMode" value="false"> 
                         <div class="mb-3">
-                            <label for="taskTitle" class="form-label">Título</label>
-                            <input type="text" class="form-control" id="taskTitle" required>
+                            <label class="form-label">Título</label>
+                            <input type="text" class="form-control" id="taskTitle" required placeholder="Ex: Prova de Anatomia">
                         </div>
-                        <div class="mb-3">
-                            <label for="taskType" class="form-label">Tipo</label>
-                            <select class="form-select" id="taskType" required>
-                                <option value="">Selecione...</option>
-                                <option value="prova">Prova</option>
-                                <option value="trabalho">Trabalho</option>
-                                <option value="atividade">Atividade</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="taskDate" class="form-label">Data</label>
-                            <!-- Use text input + Flatpickr with altInput so display is dd/mm/aaaa but underlying value remains YYYY-MM-DD -->
-                            <input type="text" class="form-control" id="taskDate" placeholder="dd/mm/aaaa" autocomplete="off" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="taskDescription" class="form-label">Descrição</label>
-                            <textarea class="form-control" id="taskDescription" rows="3"></textarea>
-                        </div>
-                        
-                        <!-- Anexos Múltiplos -->
-                        <div class="mb-3">
-                            <label class="form-label">Anexos</label>
-                            <div class="border rounded p-3">
-                                <!-- Google Drive -->
-                                <div class="mb-3">
-                                    <label for="taskGoogleDriveLinks" class="form-label small">
-                                        <i class="bi bi-google text-primary"></i> Links do Google Drive
-                                    </label>
-                                    <div id="googleDriveContainer">
-                                        <div class="input-group mb-2">
-                                            <input type="url" class="form-control form-control-sm" 
-                                                   placeholder="https://drive.google.com/..." 
-                                                   name="googleDriveLink">
-                                            <button type="button" class="btn btn-sm btn-outline-success" onclick="addGoogleDriveField()">
-                                                <i class="bi bi-plus"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <!-- YouTube -->
-                                <div class="mb-3">
-                                    <label for="taskYouTubeLinks" class="form-label small">
-                                        <i class="bi bi-youtube text-danger"></i> Links do YouTube
-                                    </label>
-                                    <div id="youTubeContainer">
-                                        <div class="input-group mb-2">
-                                            <input type="url" class="form-control form-control-sm" 
-                                                   placeholder="https://youtube.com/watch?v=..." 
-                                                   name="youTubeLink">
-                                            <button type="button" class="btn btn-sm btn-outline-success" onclick="addYouTubeField()">
-                                                <i class="bi bi-plus"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
+                        <div class="row">
+                            <div class="col-6 mb-3">
+                                <label class="form-label">Tipo</label>
+                                <select class="form-select" id="taskType">
+                                    <option value="prova">Prova</option>
+                                    <option value="trabalho">Trabalho</option>
+                                    <option value="atividade">Atividade</option>
+                                </select>
                             </div>
+                            <div class="col-6 mb-3">
+                                <label class="form-label">Data</label>
+                                <input type="text" class="form-control" id="taskDate" placeholder="Selecionar data">
+                            </div>
+                        </div>
+                        <div class="attachments-box p-3 rounded mb-3">
+                            <label class="form-label text-orange fw-bold mb-3"><i class="bi bi-paperclip me-2"></i>Materiais de Apoio</label>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small class="text-success fw-bold"><i class="bi bi-google me-1"></i>Google Drive</small>
+                                <button type="button" class="btn btn-sm btn-outline-light py-0 border-0" onclick="window.addAttachmentField('drive')"><i class="bi bi-plus-lg"></i> Adicionar</button>
+                            </div>
+                            <div id="driveInputsContainer" class="d-flex flex-column gap-2 mb-4"></div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small class="text-danger fw-bold"><i class="bi bi-youtube me-1"></i>YouTube</small>
+                                <button type="button" class="btn btn-sm btn-outline-light py-0 border-0" onclick="window.addAttachmentField('youtube')"><i class="bi bi-plus-lg"></i> Adicionar</button>
+                            </div>
+                            <div id="youtubeInputsContainer" class="d-flex flex-column gap-2"></div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <textarea class="form-control" id="taskDescription" rows="3"></textarea>
                         </div>
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-orange" onclick="addTask()">Adicionar</button>
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-orange rounded-pill" id="btnSaveTask" onclick="addTask()">Salvar Tarefa</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Calendar Modal -->
-    <div class="modal fade" id="calendarModal" tabindex="-1">
-        <div class="modal-dialog modal-fullscreen">
-            <div class="modal-content">
-                <div class="modal-header bg-orange text-white">
-                    <h5 class="modal-title">Calendário</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body p-0">
-                    <div id="calendar" class="calendar-container"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Day Tasks Modal -->
     <div class="modal fade" id="dayTasksModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header bg-orange text-white">
-                    <h5 class="modal-title">Tarefas do Dia</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content shadow-lg border-glass">
+                <div class="modal-header border-bottom border-secondary">
+                    <h5 class="modal-title fw-bold text-white" id="dayTasksModalTitle">Tarefas do Dia</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body" id="dayTasksModalBody">
-                    <!-- Tarefas do dia serão inseridas aqui -->
-                </div>
+                <div class="modal-body p-4" id="dayTasksModalBody"></div>
             </div>
         </div>
     </div>
 
-    <!-- Matrícula Prompt Modal -->
-    <div class="modal fade" id="matriculaPromptModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header bg-orange text-white">
-                    <h5 class="modal-title">Atualizar seu cadastro</h5>
-                </div>
-                <div class="modal-body" style="color:black;">
-                    <p>Para acessar todas as áreas da turma, informe sua matrícula abaixo.</p>
-                    <div class="mb-2">
-                        <label for="matriculaPromptInput" class="form-label">Matrícula</label>
-                        <input type="text" class="form-control" id="matriculaPromptInput" placeholder="Digite sua matrícula">
-                        <div class="form-text">Usaremos para validar seu acesso aos Dados da Turma.</div>
-                    </div>
-                    <div id="matriculaPromptError" class="text-danger small" style="display:none;"></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-orange" id="matriculaPromptSave">Salvar</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- iOS Install Modal -->
-    <div class="modal fade" id="iosInstallModal" tabindex="-1">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header bg-orange text-white">
-            <h5 class="modal-title">Instalar no iPhone</h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <ol>
-              <li>Toque no <span style="font-size:1.2em;">&#x1F5D2;</span> ou <b>ícone de compartilhar</b> no Safari.</li>
-              <li>Escolha <b>Adicionar à Tela de Início</b>.</li>
-              <li>Confirme em "Adicionar".</li>
-            </ol>
-            <p class="small">No iPhone, a instalação só é possível pelo Safari.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-
-    <!-- Task Details Modal -->
-    <div class="modal fade" id="taskDetailsModal" tabindex="-1">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header bg-orange text-white">
-                    <h5 class="modal-title" id="taskDetailsTitle">Detalhes da Tarefa</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body text-muted">
-                    <!-- Informações da Tarefa -->
-                    <div class="row mb-4">
-                        <div class="col-md-6">
-                            <strong>Tipo:</strong> 
-                            <span class="badge bg-secondary ms-2" id="taskDetailsType">-</span>
-                        </div>
-                        <div class="col-md-6">
-                            <strong>Data:</strong> 
-                            <span id="taskDetailsDate">-</span>
-                        </div>
-                    </div>
-                    
-                    <div class="mb-4">
-                        <strong>Descrição:</strong>
-                        <p id="taskDetailsDescription" class="mt-2 text-muted">-</p>
-                    </div>
-
-                    <!-- Seção de Anexos -->
-                    <div class="mb-4">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h6 class="mb-0">
-                                <i class="bi bi-paperclip"></i> Anexos
-                            </h6>
-                            <button class="btn btn-sm btn-success" onclick="showAddAttachmentsSection()">
-                                <i class="bi bi-plus"></i> Adicionar Anexos
-                            </button>
-                        </div>
-
-                        <!-- Lista de Anexos Existentes -->
-                        <div id="existingAttachments"></div>
-
-                        <!-- Seção para Adicionar Novos Anexos (inicialmente oculta) -->
-                        <div id="addAttachmentsSection" style="display: none;">
-                            <hr>
-                            <h6 class="text-success mb-3">
-                                <i class="bi bi-plus-circle"></i> Adicionar Novos Anexos
-                            </h6>
-                            
-                            <!-- Google Drive Links -->
-                            <div class="mb-3">
-                                <label class="form-label small">
-                                    <i class="bi bi-google text-primary"></i> Novos Links do Google Drive
-                                </label>
-                                <div id="newGoogleDriveContainer">
-                                    <div class="input-group mb-2">
-                                        <input type="url" class="form-control form-control-sm" 
-                                               placeholder="https://drive.google.com/..." 
-                                               name="newGoogleDriveLink">
-                                        <button type="button" class="btn btn-sm btn-outline-success" onclick="addNewGoogleDriveField()">
-                                            <i class="bi bi-plus"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- YouTube Links -->
-                            <div class="mb-3">
-                                <label class="form-label small">
-                                    <i class="bi bi-youtube text-danger"></i> Novos Links do YouTube
-                                </label>
-                                <div id="newYouTubeContainer">
-                                    <div class="input-group mb-2">
-                                        <input type="url" class="form-control form-control-sm" 
-                                               placeholder="https://youtube.com/watch?v=..." 
-                                               name="newYouTubeLink">
-                                        <button type="button" class="btn btn-sm btn-outline-success" onclick="addNewYouTubeField()">
-                                            <i class="bi bi-plus"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Botões da Seção de Adicionar -->
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-success btn-sm" onclick="addNewAttachments()">
-                                    <i class="bi bi-plus"></i> Adicionar Links
-                                </button>
-                                <button class="btn btn-secondary btn-sm" onclick="hideAddAttachmentsSection()">
-                                    <i class="bi bi-x"></i> Cancelar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-primary" onclick="editTaskFromDetails()">
-                        <i class="bi bi-pencil"></i> Editar Tarefa
-                    </button>
-                    <button type="button" class="btn btn-danger" onclick="deleteTaskFromDetails()">
-                        <i class="bi bi-trash"></i> Excluir Tarefa
-                    </button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ========================================
-         CARREGAMENTO DE SCRIPTS
-    ======================================== -->
-    
-    <!-- ========================================
-         FIREBASE SDKs
-    ======================================== -->
-    <!-- Firebase Core -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <!-- Firebase Authentication -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <!-- Firebase Firestore Database -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-
-    <!-- ========================================
-         SCRIPTS DA APLICAÇÃO
-    ======================================== -->
-    <!-- Configuração do Firebase -->
-    <script src="src/js/lib/firebase-config.js"></script>
-    <!-- Migration utility (only defines a console helper) -->
-    <script src="src/js/lib/migrate-tasks.js"></script>
-    <!-- Proteção de rotas -->
-    <script src="src/js/lib/route-protection.js"></script>
-    <!-- Sistema de autenticação -->
-    <script src="src/js/lib/auth.js"></script>
-    <!-- Autenticação principal -->
-    <script src="src/js/lib/main-auth.js"></script>
-    <!-- Sistema de tarefas -->
-    <script src="src/js/lib/tasks.js"></script>
-    <!-- Sistema de calendário -->
-    <script src="src/js/lib/calendar.js"></script>
-    <script src="src/js/lib/notifications.js"></script>
-    <!-- Flatpickr (date picker) - load before app so app can initialize it -->
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <!-- Aplicação principal -->
-    <script src="src/js/lib/app.js"></script>
-    <!-- Dados da turma -->
-    <script src="src/js/lib/dados.js"></script>
-    <!-- Sistema de aniversários -->
-    <script src="src/js/lib/aniversarios.js"></script>
-
-    <!-- ========================================
-         BIBLIOTECAS EXTERNAS JS
-    ======================================== -->
-    <!-- Bootstrap JavaScript -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
-    <!-- ========================================
-         RODAPÉ DA APLICAÇÃO
-    ======================================== -->
-    <footer class="bg-dark text-center text-light py-3 w-100">
-        © 2025 Pedro Ruiz Sangoi. Todos os direitos reservados.
-    </footer>
+    <script src="src/js/lib/firebase-config.js"></script>
+    <script src="src/js/lib/route-protection.js"></script>
+    <script src="src/js/lib/main-auth.js"></script>
+    <script src="src/js/lib/tasks.js"></script>
+    <script src="src/js/lib/notifications.js"></script>
+    <script src="src/js/lib/dados.js"></script>
+    <script src="src/js/lib/aniversarios.js"></script>
+    <script src="src/js/lib/app.js"></script>
 </body>
 </html>

@@ -1,315 +1,208 @@
-// Dados da Turma - links e reclamações
-// Integra com Firestore via window.db e usa firebase.auth() para roles
+// ========================================
+// GERENCIAMENTO DE DADOS DA TURMA (LINKS E SUGESTÕES)
+// ========================================
 
-(function(){
-    // Helpers
-    function el(q) { return document.querySelector(q); }
-    function escapeHtml(text){ if(!text && text !== 0) return ''; const d = document.createElement('div'); d.textContent = String(text); return d.innerHTML; }
-    function isValidUrl(url){
-        try {
-            const u = new URL(url);
-            return u.protocol === 'http:' || u.protocol === 'https:';
-        } catch(e){
-            return false;
-        }
+document.addEventListener('DOMContentLoaded', () => {
+    // Inicializa listeners se estiver na página correta
+    if (document.getElementById('linksPage')) {
+        loadClassLinks();
+        setupLinkAdmin();
     }
-
-    // Containers
-    const linksContainer = () => el('#classLinksContainer');
-    const adminControls = () => el('#classLinksAdminControls');
-    const btnAdd = () => el('#btnAddClassLink');
-    const complaintText = () => el('#complaintText');
-    const btnSubmitComplaint = () => el('#btnSubmitComplaint');
-    const complaintStatus = () => el('#complaintStatus');
-    const complaintsList = () => el('#complaintsList');
-
-    // State
-    let isAdmin = false;
-    let linksUnsub = null;
-    let complaintsUnsub = null;
-
-    async function checkAdmin() {
-        const user = firebase.auth().currentUser;
-        if (!user) { isAdmin = false; return; }
-        try {
-            const token = await user.getIdTokenResult();
-            if (token && token.claims && token.claims.admin) { isAdmin = true; return; }
-        } catch (e) {
-            console.warn('Erro ao checar claim admin:', e);
-        }
-        // Fallback: check users collection
-        try {
-            const doc = await window.db.collection('users').doc(user.uid).get();
-            const data = doc.exists ? doc.data() : null;
-            isAdmin = data && (data.role === 'admin' || data.isAdmin === true);
-        } catch (e) {
-            console.warn('Erro ao checar users collection para role admin:', e);
-            isAdmin = false;
-        }
+    if (document.getElementById('sugestoesPage')) {
+        loadComplaints();
+        setupComplaintForm();
     }
+});
 
-    function renderLinkCard(dataObj){
-        const { id, title, url } = dataObj;
-    const card = document.createElement('div');
-    card.className = 'btn btn-light shadow-sm text-start class-link-card';
-        card.style.minWidth = '180px';
-        card.style.maxWidth = '340px';
-        card.style.padding = '0.6rem 0.8rem';
-        card.dataset.id = id;
-        // content centered (title + url)
-        card.innerHTML = `
-            <div class="class-link-content">
-                <div class="fw-bold link-title text-truncate">${escapeHtml(title || 'Sem título')}</div>
-                <div class="small text-muted link-url text-truncate">${escapeHtml(url || '')}</div>
-            </div>
-        `;
+// ========================================
+// 1. LINKS ÚTEIS (ClassLinks)
+// ========================================
 
-        // actions overlay (top-right)
-        const actions = document.createElement('div');
-        actions.className = 'class-link-actions';
-        if (isAdmin) {
-            const editBtn = document.createElement('button');
-            editBtn.type = 'button';
-            editBtn.className = 'btn btn-sm btn-outline-secondary btn-edit';
-            editBtn.setAttribute('data-id', id);
-            editBtn.title = 'Editar';
-            editBtn.innerHTML = '<i class="bi bi-pencil"></i>';
-            actions.appendChild(editBtn);
+function loadClassLinks() {
+    if (!window.db) { setTimeout(loadClassLinks, 1000); return; }
 
-            const delBtn = document.createElement('button');
-            delBtn.type = 'button';
-            delBtn.className = 'btn btn-sm btn-outline-danger btn-delete';
-            delBtn.setAttribute('data-id', id);
-            delBtn.title = 'Excluir';
-            delBtn.innerHTML = '<i class="bi bi-trash"></i>';
-            actions.appendChild(delBtn);
-        }
-        card.appendChild(actions);
-        // Make whole card clickable to open the link (ignore clicks on internal controls)
-        card.style.cursor = 'pointer';
-        card.addEventListener('click', (e) => {
-            if (e.target.closest('.btn-edit') || e.target.closest('.btn-delete') || e.target.closest('a')) return;
-            window.open(url, '_blank');
-        });
+    const container = document.getElementById('classLinksContainer');
+    if (!container) return;
 
-        return card;
-    }
-
-    function clearLinks(){ const c = linksContainer(); if(c) c.innerHTML=''; }
-
-    function subscribeClassLinks(){
-        if (!window.db) return;
-        if (linksUnsub) linksUnsub();
-        linksUnsub = window.db.collection('classLinks').onSnapshot(snapshot => {
-            console.log('dados.js: classLinks onSnapshot, docs:', snapshot.size, snapshot.docs.map(d=>d.id));
-            const items = [];
-            snapshot.forEach(doc => {
-                const d = doc.data() || {};
-                items.push({ id: doc.id, title: d.title, url: d.url, order: d.order || 0, createdAt: d.createdAt });
-            });
-            // sort by order then createdAt
-            items.sort((a,b) => (a.order - b.order) || ( (b.createdAt && a.createdAt) ? (a.createdAt.seconds - b.createdAt.seconds) : 0 ));
-            const container = linksContainer();
-            if (!container) return;
+    window.db.collection('classLinks').orderBy('title', 'asc')
+        .onSnapshot(snapshot => {
             container.innerHTML = '';
-            items.forEach(it => container.appendChild(renderLinkCard(it)));
-            // ensure delegation handlers present
-        }, err => { console.error('Erro ao ouvir classLinks:', err); });
-    }
+            if (snapshot.empty) {
+                container.innerHTML = '<p class="text-muted">Nenhum link cadastrado.</p>';
+                return;
+            }
 
-    // Delegated event handlers for edit/delete (works for dynamic nodes)
-    function attachDelegation(){
-        const container = linksContainer();
-        if (!container) return;
-        container.removeEventListener('click', delegatedClick);
-        container.addEventListener('click', delegatedClick);
-    }
+            snapshot.forEach(doc => {
+                const link = doc.data();
+                const isAdmin = window.isAdmin && window.isAdmin();
+                
+                let deleteBtn = '';
+                if (isAdmin) {
+                    deleteBtn = `<button class="btn btn-sm btn-link text-danger ms-2 p-0" onclick="deleteClassLink('${doc.id}')"><i class="bi bi-trash"></i></button>`;
+                }
 
-    function delegatedClick(e){
-    const container = linksContainer();
-        const editBtn = e.target.closest('.btn-edit');
-        if (editBtn) {
-            e.preventDefault(); e.stopPropagation();
-            const id = editBtn.getAttribute('data-id');
-            openEditLinkModal(id);
-            return;
-        }
-        const delBtn = e.target.closest('.btn-delete');
-        if (delBtn) {
-            e.preventDefault(); e.stopPropagation();
-            const id = delBtn.getAttribute('data-id');
-            if (!confirm('Excluir este link?')) return;
-            window.db.collection('classLinks').doc(id).delete().then(()=>{
-                // remove card from DOM immediately for responsive UI
-                const card = container.querySelector(`[data-id="${id}"]`);
-                if (card && card.parentNode) card.parentNode.removeChild(card);
-            }).catch(err=> alert('Erro ao excluir: '+err.message));
-            return;
-        }
-    }
-
-    // Modal create/edit
-    async function openEditLinkModal(id){
-        // create modal markup dynamically if needed
-        let modal = document.getElementById('classLinkModal');
-        if (!modal) {
-            document.body.insertAdjacentHTML('beforeend', `
-                <div class="modal fade" id="classLinkModal" tabindex="-1">
-                    <div class="modal-dialog modal-dialog-centered">
-                        <div class="modal-content">
-                            <div class="modal-header bg-orange text-white">
-                                <h5 class="modal-title">Gerenciar Link</h5>
-                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body">
-                                <div class="mb-2">
-                                    <label class="form-label">Título</label>
-                                    <input id="classLinkTitle" class="form-control" />
-                                </div>
-                                <div class="mb-2">
-                                    <label class="form-label">URL</label>
-                                    <input id="classLinkUrl" class="form-control" placeholder="https://drive.google.com/..." />
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                <button id="classLinkSave" class="btn btn-orange">Salvar</button>
-                            </div>
+                const card = document.createElement('div');
+                card.className = 'card p-3 mb-2 d-flex flex-row align-items-center justify-content-between';
+                card.style.minWidth = '250px';
+                card.innerHTML = `
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-link-45deg fs-4 text-orange me-3"></i>
+                        <div>
+                            <h6 class="mb-0 fw-bold text-white"><a href="${link.url}" target="_blank" class="text-white text-decoration-none stretched-link">${link.title}</a></h6>
+                            <small class="text-muted">${link.description || ''}</small>
                         </div>
                     </div>
-                </div>
-            `);
-            modal = document.getElementById('classLinkModal');
-        }
+                    <div style="z-index: 2; position: relative;">${deleteBtn}</div>
+                `;
+                container.appendChild(card);
+            });
 
-        const titleInput = document.getElementById('classLinkTitle');
-        const urlInput = document.getElementById('classLinkUrl');
-        const saveBtn = document.getElementById('classLinkSave');
-
-        // helper to set/save state
-        const setSaving = (saving) => {
-            if (saving) { saveBtn.disabled = true; saveBtn.textContent = 'Salvando...'; }
-            else { saveBtn.disabled = false; saveBtn.textContent = 'Salvar'; }
-        };
-
-        if (!id) {
-            titleInput.value = '';
-            urlInput.value = '';
-            saveBtn.onclick = async () => {
-                const title = titleInput.value.trim();
-                const url = urlInput.value.trim();
-                if (!title || !url) { alert('Preencha título e URL'); return; }
-                if (!isValidUrl(url)) { alert('URL inválida. Inclua http:// ou https://'); return; }
-                try {
-                    setSaving(true);
-                    const ref = await window.db.collection('classLinks').add({ title, url, createdAt: firebase.firestore.FieldValue.serverTimestamp(), createdBy: firebase.auth().currentUser?.uid || null });
-                    console.log('classLink criado:', ref.id, { title, url });
-                    const m = bootstrap.Modal.getInstance(modal) || new bootstrap.Modal(modal);
-                    m.hide();
-                } catch (err) {
-                    console.error('Erro ao criar link:', err); alert('Erro ao criar link: '+(err.message||err.code||String(err)));
-                } finally { setSaving(false); }
-            };
-        } else {
-            // load existing
-            try {
-                setSaving(true);
-                const doc = await window.db.collection('classLinks').doc(id).get();
-                const data = doc.data() || {};
-                titleInput.value = data.title || '';
-                urlInput.value = data.url || '';
-                saveBtn.onclick = async () => {
-                    const title = titleInput.value.trim();
-                    const url = urlInput.value.trim();
-                    if (!title || !url) { alert('Preencha título e URL'); return; }
-                    if (!isValidUrl(url)) { alert('URL inválida. Inclua http:// ou https://'); return; }
-                    try {
-                        setSaving(true);
-                        await window.db.collection('classLinks').doc(id).update({ title, url });
-                        const m = bootstrap.Modal.getInstance(modal) || new bootstrap.Modal(modal);
-                        m.hide();
-                    } catch (err) { console.error('Erro ao atualizar link:', err); alert('Erro ao atualizar: '+err.message); }
-                    finally { setSaving(false); }
-                };
-            } catch (err) { console.error('Erro ao carregar link:', err); alert('Erro ao carregar link: '+err.message); }
-            finally { setSaving(false); }
-        }
-
-        const bsModal = new bootstrap.Modal(modal);
-        bsModal.show();
-    }
-
-    async function submitComplaint(){
-        const text = complaintText().value.trim();
-        if (!text) return alert('Escreva sua sugestão/ reclamação');
-        // Store complaints anonymously
-        const payload = { message: text, createdAt: firebase.firestore.FieldValue.serverTimestamp(), seen: false, resolved: false, anonymous: true };
-        try {
-            btnSubmitComplaint().disabled = true;
-            await window.db.collection('classComplaints').add(payload);
-            complaintText().value = '';
-            complaintStatus().style.display = 'block';
-            setTimeout(()=> complaintStatus().style.display='none', 3000);
-        } catch (err) { alert('Erro ao enviar reclamação: '+err.message); }
-        finally { btnSubmitComplaint().disabled = false; }
-    }
-
-    function renderComplaintItem(doc){
-        const c = doc.data() || {};
-        const id = doc.id;
-        const when = c.createdAt && c.createdAt.toDate ? c.createdAt.toDate() : null;
-        const dateStr = when ? when.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
-        let seenInfo = '';
-        if (c.seen) {
-            let seenAt = '';
-            if (c.seenAt && c.seenAt.toDate) {
-                const d = c.seenAt.toDate();
-                seenAt = d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+            // Mostra controles de admin se for admin
+            if (window.isAdmin && window.isAdmin()) {
+                const controls = document.getElementById('classLinksAdminControls');
+                if(controls) controls.style.display = 'block';
             }
-            seenInfo = `
-                <div class="mt-2 small text-success d-flex align-items-center">
-                    <i class="bi bi-check2-circle me-1"></i>
-                    Revisado pela Administração${seenAt ? ` — ${seenAt}` : ''}
-                </div>`;
+        }, error => {
+            console.error("Erro links:", error);
+        });
+}
+
+function setupLinkAdmin() {
+    const btn = document.getElementById('btnAddClassLink');
+    if (btn) {
+        btn.onclick = async () => {
+            const title = prompt("Título do Link:");
+            if (!title) return;
+            const url = prompt("URL (https://...):");
+            if (!url) return;
+            const desc = prompt("Descrição curta (opcional):");
+
+            try {
+                await window.db.collection('classLinks').add({
+                    title, url, description: desc,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            } catch (e) { alert('Erro ao adicionar: ' + e.message); }
+        };
+    }
+}
+
+window.deleteClassLink = async function(id) {
+    if (confirm('Apagar este link?')) {
+        try { await window.db.collection('classLinks').doc(id).delete(); }
+        catch (e) { alert('Erro: ' + e.message); }
+    }
+};
+
+// ========================================
+// 2. SUGESTÕES (Complaints) - CORRIGIDO
+// ========================================
+
+function setupComplaintForm() {
+    const btn = document.getElementById('btnSubmitComplaint');
+    const txt = document.getElementById('complaintText');
+
+    if (btn && txt) {
+        btn.onclick = async () => {
+            const text = txt.value.trim();
+            if (!text) return alert('Escreva algo!');
+
+            btn.disabled = true;
+            btn.textContent = 'Enviando...';
+
+            try {
+                const user = firebase.auth().currentUser;
+                // NOME CORRIGIDO: 'complaints' em vez de 'classComplaints'
+                await window.db.collection('complaints').add({
+                    text: text,
+                    userId: user ? user.uid : 'anon',
+                    userName: user ? (user.displayName || 'Anônimo') : 'Anônimo',
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    status: 'pending' // pending, read, resolved
+                });
+
+                txt.value = '';
+                alert('Sugestão enviada! Obrigado.');
+            } catch (e) {
+                console.error(e);
+                alert('Erro ao enviar.');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Enviar';
+            }
+        };
+    }
+}
+
+function loadComplaints() {
+    if (!window.db) return;
+
+    const list = document.getElementById('complaintsList');
+    if (!list) return;
+
+    const user = firebase.auth().currentUser;
+    // Regra: Admins veem tudo. Alunos veem as suas próprias (ou todas, dependendo da sua regra de negócio).
+    // Vou assumir que alunos veem as SUAS sugestões para acompanhar.
+    
+    // NOME CORRIGIDO: 'complaints'
+    let query = window.db.collection('complaints').orderBy('createdAt', 'desc').limit(20);
+
+    // Se quiser que aluno veja apenas as dele, descomente abaixo:
+    // if (!window.isAdmin()) query = query.where('userId', '==', user.uid);
+
+    query.onSnapshot(snapshot => {
+        list.innerHTML = '';
+        if (snapshot.empty) {
+            list.innerHTML = '<div class="text-muted text-center small">Nenhuma sugestão recente.</div>';
+            return;
         }
-        return `
-            <div class="rounded p-2 mb-2" data-id="${id}" style="border:1px solid rgba(255,255,255,0.15); ${c.seen ? 'border-left:4px solid #28a745;' : ''}">
-                <div class="small mb-1" style="color: var(--orange-dark) ;">Usuário Anônimo ${dateStr ? '— ' + dateStr : ''}</div>
-                <div>${escapeHtml(c.message || '')}</div>
-                ${seenInfo}
-            </div>
-        `;
-    }
 
-    function subscribeComplaintsPublic(){
-        const list = complaintsList();
-        if (!list || !window.db) return;
-        if (complaintsUnsub) complaintsUnsub();
-        complaintsUnsub = window.db.collection('classComplaints').orderBy('createdAt','desc').limit(100).onSnapshot(snap => {
-            if (snap.empty) { list.innerHTML = '<div class="text-muted">Nenhuma mensagem enviada ainda.</div>'; return; }
-            const items = [];
-            snap.forEach(doc => items.push(renderComplaintItem(doc)));
-            list.innerHTML = items.join('');
-        }, err => { console.error('Erro ao ouvir classComplaints:', err); list.innerHTML = '<div class="text-danger">Erro ao carregar mensagens</div>'; });
-    }
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const date = data.createdAt ? data.createdAt.toDate().toLocaleDateString('pt-BR') : 'Hoje';
+            const isMine = user && data.userId === user.uid;
+            
+            // Delete button apenas para admin
+            let delBtn = '';
+            if (window.isAdmin && window.isAdmin()) {
+                delBtn = `<button class="btn btn-sm text-danger p-0 ms-2" onclick="deleteComplaint('${doc.id}')"><i class="bi bi-x-circle"></i></button>`;
+            }
 
-    // Init
-    async function init(){
-        // wait for firebase
-        if (typeof firebase === 'undefined' || !window.db) { setTimeout(init, 500); return; }
-        await checkAdmin();
-        if (isAdmin && adminControls()) adminControls().style.display = 'block';
-    subscribeClassLinks();
-    subscribeComplaintsPublic();
-        attachDelegation();
+            const item = document.createElement('div');
+            item.className = 'border-bottom border-secondary py-2';
+            item.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <span class="badge bg-secondary mb-1">${date}</span>
+                        ${isMine ? '<span class="badge bg-orange">Minha</span>' : ''}
+                        <p class="text-white mb-0 small" style="white-space: pre-wrap;">${escapeHtml(data.text)}</p>
+                    </div>
+                    ${delBtn}
+                </div>
+            `;
+            list.appendChild(item);
+        });
+    }, error => {
+        console.warn("Erro ao ouvir complaints:", error.code);
+        if (error.code === 'permission-denied') {
+            list.innerHTML = '<div class="text-danger small text-center">Acesso restrito a administradores ou erro de permissão.</div>';
+        }
+    });
+}
 
-        if (btnAdd()) btnAdd().addEventListener('click', ()=> openEditLinkModal(null));
-        if (btnSubmitComplaint()) btnSubmitComplaint().addEventListener('click', submitComplaint);
+window.deleteComplaint = async function(id) {
+    if(!confirm('Excluir sugestão?')) return;
+    try {
+        // NOME CORRIGIDO: 'complaints'
+        await window.db.collection('complaints').doc(id).delete();
+    } catch(e) { alert('Erro: ' + e.message); }
+}
 
-        // re-check admin when auth changes
-    firebase.auth().onAuthStateChanged(async (u)=>{ await checkAdmin(); if (isAdmin && adminControls()) adminControls().style.display='block'; else if (adminControls()) adminControls().style.display='none'; });
-    }
+function escapeHtml(text) {
+    if (!text) return '';
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
 
-    init();
-
-})();
+// Exportar funções globais
+window.loadClassLinks = loadClassLinks;
+window.loadComplaints = loadComplaints;

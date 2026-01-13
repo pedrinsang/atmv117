@@ -8,14 +8,23 @@ const firebaseConfig = {
     measurementId: "G-WTV7S63HR2"
 };
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-window.db = db;
+// Inicialização segura: verifica se já existe uma instância antes de criar
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+
+window.db = firebase.firestore();
+window.auth = firebase.auth();
 window.firebase = firebase;
+
+const db = firebase.firestore();
+const auth = firebase.auth();
+
+console.log('Firebase inicializado');
 
 // Adicionar handler global para erros de autenticação
 window.addEventListener('unhandledrejection', function(event) {
-    if (event.reason?.code === 'permission-denied') {
+    if (event.reason && event.reason.code === 'permission-denied') {
         console.error('❌ Erro de permissão do Firestore:', event.reason);
         console.log('🔍 Verificando estado de autenticação...');
         
@@ -39,7 +48,11 @@ window.addEventListener('unhandledrejection', function(event) {
                         window.isRedirecting = false;
                         return;
                     }
-                    safeNavigate('login.html');
+                    if (typeof safeNavigate === 'function') {
+                        safeNavigate('login.html');
+                    } else {
+                        window.location.href = 'login.html';
+                    }
             }
         } else {
             console.warn('⚠️ Usuário autenticado mas sem permissão - possível problema nas regras do Firestore');
@@ -49,10 +62,27 @@ window.addEventListener('unhandledrejection', function(event) {
 
 // Handler adicional para erros de rede/conexão
 window.addEventListener('unhandledrejection', function(event) {
-    if (event.reason?.code === 'unavailable' || event.reason?.message?.includes('offline')) {
+    if (event.reason && (event.reason.code === 'unavailable' || (event.reason.message && event.reason.message.includes('offline')))) {
         console.warn('🌐 Problema de conectividade detectado');
-        // Você pode adicionar uma notificação para o usuário aqui
     }
 });
 
+// ... (código existente do firebase-config.js)
+
 console.log('Firebase inicializado');
+
+// === CORREÇÃO: Função Global de Navegação ===
+// Adicionada aqui porque admin.html não carrega app.js, mas precisa navegar com segurança.
+window.safeNavigate = function(path, force = false) {
+    if (window.isRedirecting && !force) return;
+    window.isRedirecting = true;
+    
+    // Evitar loops de redirecionamento para a mesma página
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    if (currentPath === path) {
+        window.isRedirecting = false;
+        return;
+    }
+
+    window.location.href = path;
+};
