@@ -1,8 +1,8 @@
 // ========================================
-// LÓGICA DO PAINEL ADMINISTRATIVO (FINAL)
+// LÓGICA DO PAINEL ADMINISTRATIVO (FINAL CORRIGIDO)
 // ========================================
 
-let allUsersCache = []; // Cache para permitir busca local instantânea
+let allUsersCache = []; 
 
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(initAdmin, 1000); 
@@ -29,7 +29,6 @@ function initAdmin() {
                 loadComplaints();
                 loadLinks();
                 
-                // Ativa a busca
                 const searchInput = document.getElementById('searchUser');
                 if(searchInput) {
                     searchInput.addEventListener('input', (e) => {
@@ -45,7 +44,7 @@ function initAdmin() {
 }
 
 // ========================================
-// 1. USUÁRIOS (COM CACHE E RENDERIZAÇÃO SEPARADA)
+// 1. USUÁRIOS - LAYOUT MOBILE CORRIGIDO
 // ========================================
 
 function loadUsers() {
@@ -53,13 +52,11 @@ function loadUsers() {
         const stat = document.getElementById('statUsers');
         if(stat) stat.textContent = snap.size;
         
-        // Atualiza cache
         allUsersCache = [];
         snap.forEach(doc => {
             allUsersCache.push({ id: doc.id, ...doc.data() });
         });
 
-        // Renderiza lista (sem filtro inicial)
         renderUserList('');
         
     }, err => console.log("Erro Users:", err));
@@ -73,7 +70,6 @@ function renderUserList(filterText = '') {
     const currentUserUid = firebase.auth().currentUser.uid;
     const term = filterText.toLowerCase();
 
-    // Filtra no cache
     const filtered = allUsersCache.filter(u => {
         const name = (u.fullName || u.name || '').toLowerCase();
         const email = (u.email || '').toLowerCase();
@@ -97,38 +93,43 @@ function renderUserList(filterText = '') {
             ? `<span class="badge bg-warning text-dark ms-2" style="font-size:0.6rem">ADMIN</span>`
             : `<span class="badge bg-secondary ms-2" style="font-size:0.6rem">ALUNO</span>`;
 
-        // Botões de Admin (Promover/Rebaixar)
+        // Botões
         let adminBtn = '';
         if (!isSelf) {
             if (isAdmin) {
-                adminBtn = `<button class="btn btn-sm btn-outline-light rounded-pill px-2 me-1" title="Remover Admin" onclick="toggleUserAdmin('${u.id}', false)"><i class="bi bi-shield-minus"></i></button>`;
+                adminBtn = `<button class="btn btn-sm btn-outline-light rounded-pill px-3 me-2" title="Remover Admin" onclick="toggleUserAdmin('${u.id}', false)"><i class="bi bi-shield-minus"></i></button>`;
             } else {
-                adminBtn = `<button class="btn btn-sm btn-outline-warning rounded-pill px-2 me-1" title="Tornar Admin" onclick="toggleUserAdmin('${u.id}', true)"><i class="bi bi-shield-plus"></i></button>`;
+                adminBtn = `<button class="btn btn-sm btn-outline-warning rounded-pill px-3 me-2" title="Tornar Admin" onclick="toggleUserAdmin('${u.id}', true)"><i class="bi bi-shield-plus"></i></button>`;
             }
         }
 
         const div = document.createElement('div');
         div.className = 'card p-3 mb-2 border-secondary bg-dark-subtle';
+        
+        // --- AQUI ESTÁ A CORREÇÃO DO LAYOUT ---
+        // Usamos flex-column (vertical) no mobile e flex-sm-row (horizontal) no tablet/pc
         div.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center text-white" style="width:40px;height:40px;">
+            <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center gap-3">
+                
+                <div class="d-flex align-items-center gap-3 w-100">
+                    <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center text-white flex-shrink-0" style="width:40px;height:40px;">
                         <i class="bi bi-person"></i>
                     </div>
-                    <div>
-                        <div class="d-flex align-items-center">
-                            <span class="fw-bold text-white">${userName}</span>
+                    <div class="overflow-hidden w-100">
+                        <div class="d-flex align-items-center flex-wrap">
+                            <span class="fw-bold text-white text-truncate" style="max-width: 150px;">${userName}</span>
                             ${roleBadge}
                         </div>
-                        <div class="small text-muted">${u.email}</div>
+                        <div class="small text-muted text-truncate">${u.email}</div>
                         <div class="small text-orange font-monospace">${u.matricula || 'Sem matrícula'}</div>
                     </div>
                 </div>
-                <div class="d-flex align-items-center">
+
+                <div class="d-flex align-items-center justify-content-end w-100 w-sm-auto mt-2 mt-sm-0 border-top border-secondary pt-2 pt-sm-0 border-top-0-sm">
                     ${adminBtn}
                     ${isBlocked 
-                        ? `<button class="btn btn-sm btn-success rounded-pill px-3" onclick="toggleUserAccess('${u.id}', false)">Ativar</button>` 
-                        : `<button class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="toggleUserAccess('${u.id}', true)">Bloq.</button>`
+                        ? `<button class="btn btn-sm btn-success rounded-pill px-4" onclick="toggleUserAccess('${u.id}', false)">Ativar</button>` 
+                        : `<button class="btn btn-sm btn-outline-danger rounded-pill px-4" onclick="toggleUserAccess('${u.id}', true)">Bloq.</button>`
                     }
                 </div>
             </div>
@@ -137,7 +138,7 @@ function renderUserList(filterText = '') {
     });
 }
 
-// Ações de Usuário
+// Ações
 window.toggleUserAdmin = async (uid, makeAdmin) => {
     const action = makeAdmin ? 'PROMOVER a Administrador' : 'REMOVER Admin';
     if(!confirm(`Deseja ${action} este usuário?`)) return;
@@ -152,15 +153,12 @@ window.toggleUserAccess = async (uid, disabled) => {
     catch(e) { alert('Erro: ' + e.message); }
 };
 
-// ========================================
 // 2. MATRÍCULAS
-// ========================================
 function loadMatriculas() {
     window.db.collection('matriculas_aceitas').onSnapshot(snap => {
         const list = document.getElementById('matriculasList');
         const stat = document.getElementById('statMatriculas');
         if(stat) stat.textContent = snap.size;
-        
         if(list) {
             list.innerHTML = '';
             snap.forEach(doc => {
@@ -182,10 +180,8 @@ window.addMatricula = async () => {
     const input = document.getElementById('newMatricula');
     const val = input.value.trim();
     if(!val) return;
-    try {
-        await window.db.collection('matriculas_aceitas').doc(val).set({ createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-        input.value = '';
-    } catch(e) { alert('Erro: ' + e.message); }
+    try { await window.db.collection('matriculas_aceitas').doc(val).set({ createdAt: firebase.firestore.FieldValue.serverTimestamp() }); input.value = ''; } 
+    catch(e) { alert('Erro: ' + e.message); }
 };
 
 window.deleteMatricula = async (id) => {
@@ -193,19 +189,15 @@ window.deleteMatricula = async (id) => {
     await window.db.collection('matriculas_aceitas').doc(id).delete();
 };
 
-// ========================================
 // 3. SUGESTÕES
-// ========================================
 function loadComplaints() {
     window.db.collection('complaints').orderBy('createdAt', 'desc').onSnapshot(snap => {
         const list = document.getElementById('adminComplaintsList');
         const stat = document.getElementById('statComplaints');
         if(stat) stat.textContent = snap.size;
-        
         if(list) {
             list.innerHTML = '';
             if(snap.empty) { list.innerHTML = '<p class="text-muted text-center py-4">Vazio.</p>'; return; }
-            
             snap.forEach(doc => {
                 const c = doc.data();
                 const date = c.createdAt ? c.createdAt.toDate().toLocaleDateString() : '-';
@@ -224,20 +216,14 @@ function loadComplaints() {
     });
 }
 
-window.deleteComplaint = async (id) => {
-    if(!confirm('Arquivar?')) return;
-    await window.db.collection('complaints').doc(id).delete();
-};
+window.deleteComplaint = async (id) => { if(!confirm('Arquivar?')) return; await window.db.collection('complaints').doc(id).delete(); };
 
-// ========================================
 // 4. LINKS
-// ========================================
 function loadLinks() {
     window.db.collection('classLinks').onSnapshot(snap => {
         const list = document.getElementById('adminLinksList');
         const stat = document.getElementById('statLinks');
         if(stat) stat.textContent = snap.size;
-        
         if(list) {
             list.innerHTML = '';
             snap.forEach(doc => {
@@ -260,14 +246,9 @@ function loadLinks() {
 }
 
 window.addNewLinkModal = async () => {
-    const title = prompt("Título:"); if(!title) return;
-    const url = prompt("URL:"); if(!url) return;
+    const title = prompt("Título:"); if(!title) return; const url = prompt("URL:"); if(!url) return;
     await window.db.collection('classLinks').add({ title, url, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
 };
 
-window.deleteLink = async (id) => {
-    if(!confirm('Excluir?')) return;
-    await window.db.collection('classLinks').doc(id).delete();
-};
-
+window.deleteLink = async (id) => { if(!confirm('Excluir?')) return; await window.db.collection('classLinks').doc(id).delete(); };
 window.logout = () => firebase.auth().signOut().then(() => window.location.href = 'login.html');

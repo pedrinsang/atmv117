@@ -2,35 +2,59 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ATMV 117 - Admin</title>
     
     <link rel="icon" type="image/png" sizes="192x192" href="src/img/icon-192.png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     
-    <link rel="stylesheet" href="src/css/styles.css?v=21.0">
+    <link rel="stylesheet" href="src/css/styles.css?v=22.0">
     <link rel="stylesheet" href="src/css/auth-styles.css">
     
     <style>
-        body { padding-bottom: 50px; }
+        body { padding-bottom: 80px; } /* Espaço extra no final para scroll */
+        
+        /* === ESTILOS GERAIS === */
+        .bg-dark-subtle { background-color: rgba(255, 255, 255, 0.05) !important; }
+        
+        /* === CARDS DE ESTATÍSTICA === */
         .stat-card {
             background: rgba(255, 107, 53, 0.15);
             border: 1px solid var(--orange-primary);
             color: white; border-radius: 15px; transition: 0.3s;
         }
-        .stat-card:hover { transform: translateY(-5px); box-shadow: 0 5px 15px var(--orange-glow); }
+        .stat-card h3 { font-size: 1.5rem; }
         
+        /* === NAVEGAÇÃO POR ABAS (MOBILE SCROLL) === */
+        .admin-tabs-container {
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            /* Esconde barra de rolagem */
+            scrollbar-width: none; 
+            -ms-overflow-style: none;
+        }
+        .admin-tabs-container::-webkit-scrollbar { display: none; }
+
+        .nav-pills {
+            display: flex;
+            flex-wrap: nowrap; /* Impede quebra de linha */
+            gap: 10px;
+        }
+
         .admin-tab-btn {
             border: 1px solid rgba(255,255,255,0.2); 
             color: #ccc; 
             border-radius: 50px; 
             padding: 8px 20px; 
             background: rgba(0,0,0,0.3);
+            white-space: nowrap; /* Texto não quebra */
             transition: all 0.3s ease;
         }
-        
-        /* CORREÇÃO DO HOVER AQUI */
+
         .admin-tab-btn:hover, .nav-pills .nav-link:hover {
             color: var(--orange-primary) !important;
             border-color: var(--orange-primary);
@@ -42,8 +66,35 @@
             border-color: var(--orange-primary); 
             color: white !important; 
         }
-        
-        .bg-dark-subtle { background-color: rgba(255, 255, 255, 0.05) !important; }
+
+        /* === AJUSTES MOBILE === */
+        @media (max-width: 576px) {
+            .navbar-brand span { font-size: 1.1rem; }
+            .navbar-brand img { height: 25px; }
+            
+            .border-top-0-sm {
+                border-top: 0 !important;
+                padding-top: 0 !important;
+                margin-top: 0 !important;
+            }
+            /* Ajuste nos cards de usuário para caber os botões */
+            .user-card-content {
+                flex-direction: column;
+                align-items: flex-start !important;
+                gap: 10px;
+            }
+            .user-card-actions {
+                width: 100%;
+                display: flex;
+                justify-content: flex-end;
+                margin-top: 5px;
+                border-top: 1px solid rgba(255,255,255,0.05);
+                padding-top: 10px;
+            }
+            
+            /* Inputs full width */
+            .input-group { max-width: 100% !important; }
+        }
     </style>
 </head>
 <body>
@@ -52,40 +103,45 @@
         <div class="container">
             <a class="navbar-brand d-flex align-items-center" href="index.html">
                 <i class="bi bi-arrow-left-circle text-muted fs-4 me-3"></i>
-                <img src="src/img/logo-silhueta.png" alt="Logo" class="brand-icon">
-                <span class="fw-bold">Painel Admin</span>
+                <img src="src/img/logo-silhueta.png" alt="Logo" class="brand-icon" style="height: 30px;">
+                <span class="fw-bold ms-2">Painel Admin</span>
             </a>
-            <div class="d-flex align-items-center gap-3">
+            <div class="d-flex align-items-center gap-2">
                 <span class="text-muted small d-none d-md-block" id="adminEmailDisplay">...</span>
-                <button class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="logout()"><i class="bi bi-box-arrow-right me-1"></i> Sair</button>
+                <button class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="logout()">
+                    <span class="d-none d-sm-inline">Sair</span>
+                    <i class="bi bi-box-arrow-right d-sm-none"></i>
+                </button>
             </div>
         </div>
     </nav>
 
-    <div class="main-content pt-4">
+    <div class="main-content pt-3">
         <div class="container" style="max-width: 1000px;">
             
-            <div class="row g-3 mb-4">
-                <div class="col-6 col-md-3"><div class="card stat-card p-3 text-center h-100"><h3 class="fw-bold mb-0" id="statUsers">-</h3><small class="text-uppercase" style="font-size: 0.7rem;">Usuários</small></div></div>
-                <div class="col-6 col-md-3"><div class="card stat-card p-3 text-center h-100"><h3 class="fw-bold mb-0" id="statMatriculas">-</h3><small class="text-uppercase" style="font-size: 0.7rem;">Matrículas</small></div></div>
-                <div class="col-6 col-md-3"><div class="card bg-glass p-3 text-center h-100 border-secondary"><h3 class="fw-bold mb-0 text-white" id="statComplaints">-</h3><small class="text-muted text-uppercase" style="font-size: 0.7rem;">Sugestões</small></div></div>
-                <div class="col-6 col-md-3"><div class="card bg-glass p-3 text-center h-100 border-secondary"><h3 class="fw-bold mb-0 text-white" id="statLinks">-</h3><small class="text-muted text-uppercase" style="font-size: 0.7rem;">Links</small></div></div>
+            <div class="row g-2 mb-4">
+                <div class="col-6 col-md-3"><div class="card stat-card p-3 text-center h-100"><h3 class="fw-bold mb-0" id="statUsers">-</h3><small class="text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px;">Usuários</small></div></div>
+                <div class="col-6 col-md-3"><div class="card stat-card p-3 text-center h-100"><h3 class="fw-bold mb-0" id="statMatriculas">-</h3><small class="text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px;">Matrículas</small></div></div>
+                <div class="col-6 col-md-3"><div class="card bg-glass p-3 text-center h-100 border-secondary"><h3 class="fw-bold mb-0 text-white" id="statComplaints">-</h3><small class="text-muted text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px;">Sugestões</small></div></div>
+                <div class="col-6 col-md-3"><div class="card bg-glass p-3 text-center h-100 border-secondary"><h3 class="fw-bold mb-0 text-white" id="statLinks">-</h3><small class="text-muted text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px;">Links</small></div></div>
             </div>
 
-            <ul class="nav nav-pills mb-4 gap-2 justify-content-center overflow-auto flex-nowrap pb-2" id="adminTabs" role="tablist">
-                <li class="nav-item"><button class="nav-link admin-tab-btn active" data-bs-toggle="tab" data-bs-target="#tabUsers"><i class="bi bi-people me-2"></i>Usuários</button></li>
-                <li class="nav-item"><button class="nav-link admin-tab-btn" data-bs-toggle="tab" data-bs-target="#tabMatriculas"><i class="bi bi-card-heading me-2"></i>Matrículas</button></li>
-                <li class="nav-item"><button class="nav-link admin-tab-btn" data-bs-toggle="tab" data-bs-target="#tabComplaints"><i class="bi bi-chat-dots me-2"></i>Sugestões</button></li>
-                <li class="nav-item"><button class="nav-link admin-tab-btn" data-bs-toggle="tab" data-bs-target="#tabLinks"><i class="bi bi-link-45deg me-2"></i>Links</button></li>
-            </ul>
+            <div class="admin-tabs-container">
+                <ul class="nav nav-pills" id="adminTabs" role="tablist">
+                    <li class="nav-item"><button class="nav-link admin-tab-btn active" data-bs-toggle="tab" data-bs-target="#tabUsers"><i class="bi bi-people me-2"></i>Usuários</button></li>
+                    <li class="nav-item"><button class="nav-link admin-tab-btn" data-bs-toggle="tab" data-bs-target="#tabMatriculas"><i class="bi bi-card-heading me-2"></i>Matrículas</button></li>
+                    <li class="nav-item"><button class="nav-link admin-tab-btn" data-bs-toggle="tab" data-bs-target="#tabComplaints"><i class="bi bi-chat-dots me-2"></i>Sugestões</button></li>
+                    <li class="nav-item"><button class="nav-link admin-tab-btn" data-bs-toggle="tab" data-bs-target="#tabLinks"><i class="bi bi-link-45deg me-2"></i>Links</button></li>
+                </ul>
+            </div>
 
             <div class="tab-content">
                 
                 <div class="tab-pane fade show active" id="tabUsers">
-                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 gap-2">
                         <h5 class="text-white fw-bold mb-0">Gerenciar Usuários</h5>
                         
-                        <div class="input-group" style="max-width: 300px;">
+                        <div class="input-group w-100" style="max-width: 100%; width: 100%;">
                             <span class="input-group-text bg-dark border-secondary text-muted"><i class="bi bi-search"></i></span>
                             <input type="text" id="searchUser" class="form-control bg-dark text-white border-secondary" placeholder="Buscar nome, email...">
                         </div>
@@ -97,11 +153,11 @@
                 </div>
 
                 <div class="tab-pane fade" id="tabMatriculas">
-                    <div class="card p-4 mb-4 border-secondary bg-dark-subtle">
-                        <label class="text-orange fw-bold mb-2">Adicionar Nova Matrícula</label>
+                    <div class="card p-3 mb-3 border-secondary bg-dark-subtle">
+                        <label class="text-orange fw-bold mb-2 small text-uppercase">Nova Matrícula</label>
                         <div class="input-group">
                             <input type="text" id="newMatricula" class="form-control bg-dark text-white border-secondary" placeholder="Ex: 2023001">
-                            <button class="btn btn-orange px-4" onclick="addMatricula()">Adicionar</button>
+                            <button class="btn btn-orange px-3" onclick="addMatricula()">Add</button>
                         </div>
                     </div>
                     <div id="matriculasList" class="row g-2"></div>
@@ -115,7 +171,7 @@
                 <div class="tab-pane fade" id="tabLinks">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h5 class="text-white fw-bold">Links da Turma</h5>
-                        <button class="btn btn-sm btn-orange rounded-pill px-3" onclick="addNewLinkModal()"><i class="bi bi-plus-lg me-1"></i> Novo Link</button>
+                        <button class="btn btn-sm btn-orange rounded-pill px-3" onclick="addNewLinkModal()"><i class="bi bi-plus-lg me-1"></i> Novo</button>
                     </div>
                     <div id="adminLinksList" class="row g-2"></div>
                 </div>
