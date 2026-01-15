@@ -50,7 +50,7 @@ body {
 .page-content.active { display: block; opacity: 1; animation: fadeIn 0.4s; }
 @keyframes fadeIn { from {opacity:0; transform:translateY(10px);} to {opacity:1; transform:translateY(0);} }
 
-.main-content { padding-top: 5rem !important; }
+.main-content { padding-top: 6rem; }
 
 /* NAVBAR SUPERIOR */
 .navbar {
@@ -150,7 +150,7 @@ body {
 
 .bottom-nav-fab-container { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
 .bottom-nav-fab {
-    position: absolute; top: -2px; width: 75px; height: 75px;
+    position: absolute; top: -3px; width: 75px; height: 75px;
     background: linear-gradient(135deg, var(--orange-primary), #e55a2b); border-radius: 50%; display: flex; align-items: center; justify-content: center;
     color: white; font-size: 1.8rem; box-shadow: 0 4px 20px var(--orange-glow); border: 6px solid var(--bg-body); cursor: pointer; z-index: 1060; transition: transform 0.2s;
 }
