@@ -22,10 +22,13 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const _host = window.location.hostname;
     const allowSW = !(_host === '127.0.0.1' || _host === 'localhost' || window.location.protocol === 'file:');
+    
+    // Registro do Service Worker
     if (allowSW && 'serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js').catch(err => console.error('SW falhou:', err));
+        navigator.serviceWorker.register('./sw.js?v=99').catch(err => console.error('SW falhou:', err));
     }
 
+    // Configuração do Seletor de Data (Flatpickr)
     const taskDateInput = document.getElementById('taskDate');
     if (taskDateInput && typeof flatpickr !== 'undefined') {
         flatpickr(taskDateInput, {
@@ -34,8 +37,22 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Overlay da Sidebar
     const overlay = document.getElementById('sidebarOverlay');
     if(overlay) overlay.addEventListener('click', toggleSidebar);
+
+    // === NAVEGAÇÃO POR TECLADO (SETINHAS) ===
+    document.addEventListener('keydown', (e) => {
+        const calPage = document.getElementById('calendarioPage');
+        if (!calPage || !calPage.classList.contains('active')) return;
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+        if (e.key === 'ArrowLeft') {
+            changePageMonth(-1); 
+        } else if (e.key === 'ArrowRight') {
+            changePageMonth(1);
+        }
+    });
 });
 
 function initializeApp() {
@@ -51,6 +68,9 @@ function initializeApp() {
     firebase.auth().onAuthStateChanged(async (user) => {
         if (user) {
             if (typeof loadBirthdaysIntoCache === 'function') loadBirthdaysIntoCache();
+            
+            // Inicializa sistema de notificações
+            if (window.notificationSystem) setTimeout(() => window.notificationSystem.init(), 1000);
 
             let displayName = user.displayName;
             try {
@@ -93,16 +113,13 @@ window.deferredPrompt = null;
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); window.deferredPrompt = e; const btn = document.getElementById('installPwaBtn'); if (btn) btn.style.display = 'inline-block'; });
 
 // ========================================
-// VERIFICAÇÃO DE PERMISSÃO (NOVO)
+// VERIFICAÇÃO DE PERMISSÃO
 // ========================================
 window.verifyClassAccess = async function(silent = false) {
     const user = firebase.auth().currentUser;
     if (!user) return false;
     
-    // Se for Admin, libera tudo
     if (window.isAdmin && window.isAdmin()) return true;
-
-    // Se já verificou antes, retorna cache
     if (window.isClassMemberConfirmed === true) return true;
 
     if (!window.currentUserData) {
@@ -130,7 +147,6 @@ window.verifyClassAccess = async function(silent = false) {
     return false;
 };
 
-// Botão "Turma" da barra inferior
 window.handleClassDataAccess = async function() {
     const hasAccess = await window.verifyClassAccess();
     if (hasAccess) toggleSidebar();
@@ -148,6 +164,20 @@ function navigateToPage(pageId) {
     const target = document.getElementById(pageId + 'Page');
     if (target) target.classList.add('active');
     
+    // --- LÓGICA DE PADDING DO CALENDÁRIO ---
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+        if (pageId === 'calendario') {
+            mainContent.classList.add('calendar-mode');
+            
+            // RESET PARA O DIA ATUAL: Sempre que entrar no calendário, volta para hoje
+            window.pageCalendarDate = new Date(); 
+            
+        } else {
+            mainContent.classList.remove('calendar-mode');
+        }
+    }
+    
     document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
     const sidebarItem = document.querySelector(`.menu-item[data-page="${pageId}"]`);
     if (sidebarItem) sidebarItem.classList.add('active');
@@ -161,15 +191,26 @@ function navigateToPage(pageId) {
     const sidebar = document.getElementById('sidebar');
     if (sidebar && sidebar.classList.contains('open')) toggleSidebar();
 
-    if (pageId === 'calendario') setTimeout(() => { if(typeof initializeCalendarPage === 'function') initializeCalendarPage(); }, 100);
+    if (pageId === 'calendario') {
+        setTimeout(() => { 
+            if(typeof initializeCalendarPage === 'function') {
+                if (document.getElementById('pageCalendarDays')) {
+                    renderPageCalendar(); // Redesenha com a data nova (hoje)
+                } else {
+                    initializeCalendarPage(); 
+                }
+            } 
+        }, 100);
+    }
+    
     if (pageId === 'aniversarios') setTimeout(() => { if(window.loadBirthdays) window.loadBirthdays(); }, 100);
     
     if (pageId === 'notificacoes') {
         const badge = document.getElementById('bottomNavBadge');
         if(badge) badge.style.display = 'none';
+        // Renderiza notificações ao entrar na página
         if (window.notificationSystem) {
-            window.notificationSystem.markAllAsRead();
-            window.notificationSystem.renderList();
+            window.notificationSystem.renderListFromCache(); 
         }
     }
     window.scrollTo(0,0);
@@ -190,7 +231,7 @@ function initializeCalendarPage() {
     
     const calendarHTML = `
         <div class="calendar" id="pageCalendar">
-            <div class="calendar-header d-flex align-items-center justify-content-between px-3 py-2 mb-3">
+            <div class="calendar-header d-flex align-items-center justify-content-between px-3 py-2">
                 <button class="btn btn-outline-light border-0" onclick="changePageMonth(-1)" style="font-size: 1.5rem;"><i class="bi bi-chevron-left"></i></button>
                 <div class="text-center">
                     <div id="pageCalendarYear" class="text-muted" style="font-size: 0.9rem; font-weight: 300; line-height: 1;"></div>
@@ -207,12 +248,28 @@ function initializeCalendarPage() {
                     <div class="d-flex align-items-center gap-1"><span class="legend-dot aniversario"></span> Aniversário</div>
                 </div>
             </div>
-            <div class="calendar-grid">
+            
+            <div class="calendar-grid" id="calendarGridWrapper">
                 <div class="calendar-days-header">${['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(d=>`<div class="calendar-day-header">${d}</div>`).join('')}</div>
                 <div class="calendar-days" id="pageCalendarDays"></div>
             </div>
         </div>`;
+    
     calendarPageView.innerHTML = calendarHTML;
+
+    // Swipe
+    const swipeArea = document.getElementById('pageCalendar');
+    if (swipeArea) {
+        let touchStartX = 0;
+        let touchEndX = 0;
+        swipeArea.addEventListener('touchstart', (e) => touchStartX = e.changedTouches[0].screenX, {passive: true});
+        swipeArea.addEventListener('touchend', (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            if (touchEndX < touchStartX - 50) changePageMonth(1);
+            if (touchEndX > touchStartX + 50) changePageMonth(-1);
+        }, {passive: true});
+    }
+
     if (typeof loadPageCalendarData === 'function') loadPageCalendarData();
 }
 
@@ -232,10 +289,12 @@ function loadPageCalendarData() {
     });
 }
 
-function renderPageCalendar() {
+function renderPageCalendar(animationDir = 0) {
     const daysElement = document.getElementById('pageCalendarDays');
     const yearElement = document.getElementById('pageCalendarYear');
     const monthElement = document.getElementById('pageCalendarMonth');
+    const gridWrapper = document.getElementById('calendarGridWrapper');
+    
     if (!daysElement) return;
 
     const now = window.pageCalendarDate || new Date();
@@ -246,6 +305,13 @@ function renderPageCalendar() {
     if(yearElement) yearElement.textContent = year;
     if(monthElement) monthElement.textContent = monthNames[month];
 
+    if (gridWrapper && animationDir !== 0) {
+        gridWrapper.classList.remove('anim-next', 'anim-prev');
+        void gridWrapper.offsetWidth; 
+        if (animationDir === 1) gridWrapper.classList.add('anim-next');
+        else gridWrapper.classList.add('anim-prev');
+    }
+
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     
@@ -254,32 +320,44 @@ function renderPageCalendar() {
     
     for (let day = 1; day <= daysInMonth; day++) {
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const hasTasks = window.pageCalendarTasks && window.pageCalendarTasks[dateStr];
+        const hasTasks = window.pageCalendarTasks && window.pageCalendarTasks[dateStr] ? window.pageCalendarTasks[dateStr] : [];
         const isToday = dateStr === new Date().toISOString().split('T')[0];
         
-        let dots = ''; 
-        let bars = '';
-        
-        if (hasTasks) {
-            dots = `<div class="task-dots">${hasTasks.map(t => `<span class="task-dot ${t.type}"></span>`).join('')}</div>`;
-            bars = `<div class="task-bars">${hasTasks.slice(0, 3).map(t => `<div class="task-bar ${t.type}">${t.title}</div>`).join('')}</div>`;
-        }
-        
+        let bdays = [];
         if (typeof getBirthdaysForDate === 'function') {
-             const bdays = getBirthdaysForDate(new Date(year, month, day));
-             if(bdays && bdays.length) {
-                 const dotHtml = `<span class="task-dot aniversario"></span>`;
-                 if(dots) dots = dots.replace('</div>', '') + dotHtml + '</div>';
-                 else dots = `<div class="task-dots">${dotHtml}</div>`;
-                 bars += `<div class="task-bars"><div class="task-bar aniversario">🎉 ${bdays[0].name}</div></div>`;
-             }
+             bdays = getBirthdaysForDate(new Date(year, month, day));
         }
 
-        let classes = `calendar-day ${isToday ? 'selected' : ''} ${hasTasks ? 'has-task' : ''}`;
+        let allItems = [];
+        if (bdays.length > 0) bdays.forEach(b => allItems.push({ type: 'aniversario', title: `🎉 ${b.name}`, isBday: true }));
+        if (hasTasks.length > 0) hasTasks.forEach(t => allItems.push(t));
+
+        let barsHtml = '';
+        let dotsHtml = '';
+
+        if (allItems.length > 0) {
+            const barsContent = allItems.map(t => {
+                return `<div class="task-bar ${t.type}">${t.title}</div>`;
+            }).join('');
+
+            // Limite visível no CSS será controlado via nth-type
+            // Calculamos o excesso baseado no limite de 2 (3º em diante escondido no hover)
+            const maxVisibleExpanded = 2;
+            const extraCount = allItems.length - maxVisibleExpanded;
+            
+            const moreLabel = extraCount > 0 
+                ? `<div class="task-more-label">Clique para ver +${extraCount}</div>` 
+                : '';
+
+            barsHtml = `<div class="task-bars">${barsContent}${moreLabel}</div>`;
+            dotsHtml = `<div class="task-dots">${allItems.slice(0,4).map(t => `<span class="task-dot ${t.type}"></span>`).join('')}</div>`;
+        }
+
+        let classes = `calendar-day ${isToday ? 'selected' : ''} ${allItems.length > 0 ? 'has-task' : ''}`;
         html += `<div class="${classes}" onclick="showPageDayTasks('${dateStr}')">
                     <span class="day-number">${day}</span>
-                    ${dots}
-                    ${bars}
+                    ${dotsHtml}
+                    ${barsHtml}
                  </div>`;
     }
     daysElement.innerHTML = html;
@@ -288,7 +366,7 @@ function renderPageCalendar() {
 function changePageMonth(dir) {
     if (!window.pageCalendarDate) window.pageCalendarDate = new Date();
     window.pageCalendarDate.setMonth(window.pageCalendarDate.getMonth() + dir);
-    renderPageCalendar();
+    renderPageCalendar(dir); 
 }
 
 function showPageDayTasks(dateStr) {
@@ -395,3 +473,140 @@ window.navigateToPage = navigateToPage;
 window.changePageMonth = changePageMonth;
 window.showPageDayTasks = showPageDayTasks;
 window.logout = function() { firebase.auth().signOut().then(() => window.location.href='login.html'); };
+
+// ========================================
+// SISTEMA DE NOTIFICAÇÕES (Lógica "Lido por Mim")
+// ========================================
+window.notificationSystem = {
+    initialized: false,
+    unsubscribe: null,
+    cacheSnapshot: null, // Cache para guardar o snapshot
+
+    init: function() {
+        if (this.initialized || !window.db || !firebase.auth().currentUser) return;
+        this.initialized = true;
+
+        const user = firebase.auth().currentUser;
+        
+        // Escuta as notificações em tempo real
+        this.unsubscribe = window.db.collection('notifications')
+            .orderBy('createdAt', 'desc')
+            .limit(20)
+            .onSnapshot(snapshot => {
+                this.cacheSnapshot = snapshot; // Salva no cache
+                this.renderList(snapshot, user.uid);
+            });
+    },
+
+    // Função auxiliar para renderizar se já tiver cache (útil ao navegar entre páginas)
+    renderListFromCache: function() {
+        const user = firebase.auth().currentUser;
+        if(this.cacheSnapshot && user) {
+            this.renderList(this.cacheSnapshot, user.uid);
+        }
+    },
+
+    renderList: function(snapshot, userId) {
+        const listEl = document.getElementById('notificationsList'); 
+        const badgeEl = document.getElementById('bottomNavBadge');
+        
+        if (!snapshot || snapshot.empty) {
+            if(listEl) listEl.innerHTML = '<div class="text-center text-muted mt-5"><i class="bi bi-bell-slash fs-1"></i><p class="mt-2">Nenhuma notificação nova.</p></div>';
+            if(badgeEl) badgeEl.style.display = 'none';
+            return;
+        }
+
+        let unreadCount = 0;
+        let html = '';
+
+        snapshot.forEach(doc => {
+            const n = doc.data();
+            const isRead = n.readBy && n.readBy.includes(userId);
+
+            if (!isRead) {
+                unreadCount++;
+                
+                let dateStr = '';
+                if (n.createdAt && n.createdAt.toDate) {
+                    dateStr = n.createdAt.toDate().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute:'2-digit' });
+                }
+
+                let icon = 'bi-info-circle';
+                let color = 'primary';
+                if (n.type === 'prova') { icon = 'bi-exclamation-triangle'; color = 'danger'; }
+                else if (n.type === 'trabalho') { icon = 'bi-journal-text'; color = 'success'; }
+                else if (n.type === 'aviso') { icon = 'bi-megaphone'; color = 'warning'; }
+
+                html += `
+                <div class="card mb-3 border-0 shadow-sm" style="background: rgba(255,255,255,0.05);">
+                    <div class="card-body d-flex align-items-start gap-3">
+                        <div class="rounded-circle bg-${color} bg-opacity-10 p-2 text-${color}">
+                            <i class="bi ${icon} fs-4"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1 fw-bold text-white">${n.title}</h6>
+                            <p class="mb-2 text-muted small">${n.body || n.message || ''}</p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span style="font-size: 0.7rem; color: #666;">${dateStr}</span>
+                                <button class="btn btn-sm btn-outline-light py-0 px-2" style="font-size: 0.7rem;" onclick="window.notificationSystem.markAsRead('${doc.id}')">
+                                    Marcar como lida
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+            }
+        });
+
+        if (listEl) {
+            if (unreadCount === 0) {
+                listEl.innerHTML = '<div class="text-center text-muted mt-5"><i class="bi bi-check-circle fs-1"></i><p class="mt-2">Tudo lido por aqui!</p></div>';
+            } else {
+                listEl.innerHTML = html;
+            }
+        }
+
+        if (badgeEl) {
+            if (unreadCount > 0) {
+                badgeEl.style.display = 'flex';
+                badgeEl.textContent = unreadCount > 9 ? '9+' : unreadCount;
+            } else {
+                badgeEl.style.display = 'none';
+            }
+        }
+    },
+
+    markAsRead: async function(docId) {
+        const user = firebase.auth().currentUser;
+        if (!user) return;
+        try {
+            await window.db.collection('notifications').doc(docId).update({
+                readBy: firebase.firestore.FieldValue.arrayUnion(user.uid)
+            });
+        } catch (error) {
+            console.error("Erro ao marcar como lida:", error);
+        }
+    },
+
+    markAllAsRead: async function() {
+        const user = firebase.auth().currentUser;
+        if (!user) return;
+
+        const snapshot = await window.db.collection('notifications').get();
+        const batch = window.db.batch();
+        let count = 0;
+
+        snapshot.forEach(doc => {
+            const n = doc.data();
+            if (!n.readBy || !n.readBy.includes(user.uid)) {
+                const ref = window.db.collection('notifications').doc(doc.id);
+                batch.update(ref, { 
+                    readBy: firebase.firestore.FieldValue.arrayUnion(user.uid) 
+                });
+                count++;
+            }
+        });
+
+        if (count > 0) await batch.commit();
+    }
+};

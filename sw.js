@@ -1,127 +1,88 @@
-const CACHE_NAME = 'atmv117-v2.0';
-const urlsToCache = [
-    '/',
-    '/index.html',
-    '/src/css/styles.css',
-    '/src/js/app.js',
-    '/src/js/tasks.js',
-    '/src/js/calendar.js',
-    '/src/js/firebase-config.js',
-    '/manifest.json',
+const CACHE_NAME = 'atmv117-v6'; // Mudei a versão para forçar atualização
+const ASSETS_TO_CACHE = [
+    './',
+    './index.html',
+    './login.html',
+    './register.html',
+    './reset-password.html',
+    './blocked.html',
+    './admin.html',
+    './manifest.json',
+    
+    // CSS
+    './src/css/styles.css',
+    './src/css/auth-styles.css',
+    
+    // JS (Note que removi o calendar.js)
+    './src/js/lib/firebase-config.js',
+    './src/js/lib/app.js',
+    './src/js/lib/tasks.js',
+    './src/js/lib/notifications.js',
+    './src/js/lib/dados.js',
+    './src/js/lib/aniversarios.js',
+    './src/js/lib/admin.js',
+    
+    // Imagens (Verifique se esses arquivos existem mesmo na pasta)
+    './src/img/logo-silhueta.png',
+    './src/img/icon-192.png',
+    './src/img/ATMV117.png',
+
+    // CDNs Externos (Bootstrap, Flatpickr)
     'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
+    'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css',
+    'https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css',
     'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',
-    'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css'
+    'https://cdn.jsdelivr.net/npm/flatpickr'
 ];
 
-// runtime flag controllable via postMessage from the page
-let disableCaching = false;
-
-// Instalar Service Worker
+// Instalação: Cache de arquivos estáticos
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then((cache) => {
-                console.log('Cache aberto');
-                return cache.addAll(urlsToCache);
+                console.log('SW: Caching files');
+                return cache.addAll(ASSETS_TO_CACHE);
+            })
+            .catch((err) => {
+                console.error('SW: Falha ao cachear arquivos. Verifique se todos os caminhos existem.', err);
             })
     );
+    self.skipWaiting();
 });
 
-// Ativar Service Worker
+// Ativação: Limpeza de caches antigos
 self.addEventListener('activate', (event) => {
     event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((cacheName) => {
-                    if (cacheName !== CACHE_NAME) {
-                        console.log('Removendo cache antigo:', cacheName);
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
+        caches.keys().then((keyList) => {
+            return Promise.all(keyList.map((key) => {
+                if (key !== CACHE_NAME) {
+                    return caches.delete(key);
+                }
+            }));
         })
     );
+    self.clients.claim();
 });
 
-// Interceptar requisições - CORRIGIDO
+// Fetch: Interceptação de requisições
 self.addEventListener('fetch', (event) => {
-    // FILTRAR: Só processar requisições GET
-    if (event.request.method !== 'GET') {
-        return; // Deixar POST/PUT/DELETE passarem direto
-    }
-    
-    const requestUrl = new URL(event.request.url);
-    
-    // FILTRAR: Não cachear APIs externas
-    if (
-        requestUrl.hostname.includes('firestore.googleapis.com') ||
-        requestUrl.hostname.includes('api.github.com') ||
-        requestUrl.hostname.includes('firebase') ||
-        requestUrl.hostname.includes('googleapis.com')
-    ) {
-        return; // Deixar APIs passarem direto
-    }
-    
-    // If caching is disabled (development mode), prefer network-first
-    if (disableCaching) {
-        event.respondWith(
-            fetch(event.request.clone()).then((response) => response).catch(() => caches.match(event.request))
-        );
+    // Ignora requisições do Firestore/Google APIs para não quebrar auth
+    if (event.request.url.includes('firestore.googleapis.com') || 
+        event.request.url.includes('googleapis.com') ||
+        event.request.url.includes('firebase')) {
         return;
     }
 
     event.respondWith(
         caches.match(event.request)
             .then((response) => {
-                // Cache hit
-                if (response) {
-                    return response;
-                }
-                
-                // Buscar na rede
-                return fetch(event.request.clone()).then((response) => {
-                    // Verificar se é uma resposta válida
-                    if (!response || response.status !== 200 || response.type !== 'basic') {
-                        return response;
+                // Retorna do cache se existir, senão busca na rede
+                return response || fetch(event.request).catch(() => {
+                    // Fallback opcional para offline (pode ser index.html)
+                    if (event.request.mode === 'navigate') {
+                        return caches.match('./index.html');
                     }
-                    
-                    // Cachear apenas se for GET
-                    const responseToCache = response.clone();
-                    caches.open(CACHE_NAME)
-                        .then((cache) => {
-                            cache.put(event.request, responseToCache);
-                        });
-                    
-                    return response;
-                }).catch(() => {
-                    // Fallback para cache em caso de erro
-                    return caches.match(event.request);
                 });
             })
     );
-});
-
-// Listener para mensagens do app
-self.addEventListener('message', (event) => {
-    if (!event.data) return;
-    const data = event.data;
-    if (data.type === 'SKIP_WAITING') {
-        self.skipWaiting();
-    }
-    if (data.type === 'SET_DISABLE_CACHE') {
-        disableCaching = !!data.value;
-        console.log('ServiceWorker: disableCaching set to', disableCaching);
-    }
-    if (data.type === 'CLEAR_CACHE') {
-        console.log('ServiceWorker: clearing all caches');
-        caches.keys().then(keys => Promise.all(keys.map(k=>caches.delete(k))));
-    }
-});
-
-// Sincronização em background (opcional)
-self.addEventListener('sync', (event) => {
-    if (event.tag === 'background-sync') {
-        console.log('Sincronização em background');
-        // Aqui você pode implementar sincronização offline
-    }
 });
