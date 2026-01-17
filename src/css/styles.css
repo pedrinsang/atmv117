@@ -741,3 +741,29 @@ body {
     border-color: var(--orange-primary) !important;
     box-shadow: 0 0 0 0.25rem rgba(255, 107, 53, 0.25) !important; /* Brilho laranja suave */
 }
+
+/* =========================================
+   CORREÇÃO DO SWIPE (TOQUE) NO CARROSSEL
+   ========================================= */
+
+/* Força que os containers internos repassem o gesto horizontal para o pai */
+#homeScheduleContainer,
+#classroomsListContainer,
+.daily-schedule-item,
+.table-responsive,
+.classroom-input-group {
+    /* pan-y significa: "Eu cuido do scroll vertical, mas o horizontal não é meu" */
+    touch-action: pan-y !important; 
+}
+
+/* Garante que até a tabela ajude */
+#homeScheduleContainer table,
+#homeScheduleContainer td,
+#homeScheduleContainer th {
+    touch-action: pan-y !important;
+}
+
+/* Evita que selecionar texto atrapalhe o swipe */
+.carousel-item {
+    user-select: none; /* Opcional: impede seleção de texto acidental ao deslizar */
+}
