@@ -336,3 +336,373 @@ body {
         border: 2px solid rgba(30, 30, 35, 1);
     }
 }
+
+/* =========================================
+   CARROSSEL DE NOTÍCIAS (FIXO E ORGANIZADO)
+   ========================================= */
+
+/* 1. O Container (A trilha onde os cards deslizam) */
+.news-carousel-container {
+    display: flex !important;
+    flex-direction: row !important; /* Força ficar em linha */
+    overflow-x: auto !important;    /* Permite rolar para o lado */
+    overflow-y: hidden !important;
+    gap: 15px;
+    padding: 10px 5px 20px 5px; /* Espaço extra embaixo para sombra */
+    
+    /* Efeito magnético ao soltar o dedo */
+    scroll-snap-type: x mandatory; 
+    -webkit-overflow-scrolling: touch;
+    
+    /* Esconde barra de rolagem */
+    scrollbar-width: none; 
+    -ms-overflow-style: none;
+}
+.news-carousel-container::-webkit-scrollbar { display: none; }
+
+/* 2. O Cartão (Tamanho fixo é crucial) */
+.news-card {
+    position: relative;
+    display: block; /* Garante que o link se comporte como bloco */
+    
+    /* TAMANHO FIXO - ISSO EVITA A DESORGANIZAÇÃO */
+    min-width: 240px !important;
+    width: 240px !important;
+    height: 160px !important;
+    
+    /* IMPEDE QUE O FLEXBOX ESMAGUE O CARTÃO */
+    flex-shrink: 0 !important; 
+    
+    border-radius: 16px;
+    overflow: hidden;
+    scroll-snap-align: start; /* Alinha à esquerda ao parar */
+    
+    background: #18181b;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    
+    text-decoration: none !important; /* Remove sublinhado azul */
+    transition: transform 0.2s ease;
+}
+
+.news-card:active {
+    transform: scale(0.97);
+}
+
+/* 3. A Imagem (Fundo) */
+.news-card-img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important; /* Corta a imagem para preencher sem esticar */
+    opacity: 0.6; /* Escurece um pouco para o texto aparecer */
+    transition: opacity 0.3s;
+}
+
+/* 4. O Texto (Sobreposto) */
+.news-card-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    padding: 15px;
+    
+    /* Gradiente preto embaixo para ler o texto */
+    background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.4) 60%, transparent 100%);
+    
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end; /* Joga o texto para baixo */
+    align-items: flex-start;
+}
+
+/* 5. A Data e o Título */
+.news-date {
+    display: block;
+    font-size: 0.65rem;
+    color: var(--orange-primary, #ff6b35); /* Laranja */
+    text-transform: uppercase;
+    font-weight: 800;
+    margin-bottom: 4px;
+    letter-spacing: 0.5px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+
+.news-title {
+    color: white !important;
+    font-size: 0.85rem !important;
+    font-weight: 600;
+    line-height: 1.3;
+    margin: 0;
+    text-align: left;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    
+    /* Corta o texto se passar de 3 linhas */
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;             /* <--- ADICIONE ESTA LINHA PARA SUMIR O AVISO */
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* =========================================
+   ESTILOS DO HORÁRIO (SCHEDULE)
+   ========================================= */
+.schedule-header-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+/* Acordeão de Semestres */
+.accordion-item {
+    background-color: transparent !important;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.accordion-button {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    color: white !important;
+}
+.accordion-button:not(.collapsed) {
+    background-color: rgba(255, 107, 53, 0.2) !important;
+    color: var(--orange-primary) !important;
+}
+.accordion-body {
+    background-color: #121214;
+    color: #ccc;
+}
+
+/* Tabela de Edição */
+#gridEditorTable th {
+    background-color: rgba(255, 107, 53, 0.1);
+    color: var(--orange-primary);
+    font-size: 0.8rem;
+    padding: 8px 2px;
+}
+#gridEditorTable td {
+    height: 50px;
+    font-size: 0.65rem; /* Fonte pequena para caber nomes longos */
+    cursor: pointer;
+    background-color: rgba(255, 255, 255, 0.02);
+    transition: background 0.2s;
+    padding: 2px;
+    vertical-align: middle;
+    word-break: break-word; /* Quebra texto se for longo */
+}
+#gridEditorTable td:active {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+.grid-filled {
+    background-color: rgba(46, 213, 115, 0.2) !important; /* Verde suave */
+    border: 1px solid rgba(46, 213, 115, 0.5) !important;
+    color: #fff;
+    font-weight: 500;
+}
+
+/* Visualização na Home */
+.daily-schedule-item {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.daily-time {
+    width: 60px;
+    font-weight: bold;
+    color: var(--orange-primary);
+}
+.daily-subject {
+    font-weight: 500;
+}
+
+/* =========================================
+   BOTÕES PERSONALIZADOS (CORREÇÃO DO MODAL)
+   ========================================= */
+
+/* Estilo padrão (Não selecionado) */
+.btn-outline-orange {
+    color: var(--orange-primary) !important; /* Texto Laranja */
+    border-color: var(--orange-primary) !important; /* Borda Laranja */
+    background-color: transparent !important;
+}
+
+/* Quando passar o mouse */
+.btn-outline-orange:hover {
+    background-color: rgba(255, 107, 53, 0.1) !important;
+    color: white !important;
+}
+
+/* Estilo ATIVO (Selecionado / Checked) */
+.btn-check:checked + .btn-outline-orange {
+    background-color: var(--orange-primary) !important; /* Fundo Laranja */
+    border-color: var(--orange-primary) !important;
+    color: white !important; /* Texto Branco */
+    box-shadow: 0 0 10px rgba(255, 107, 53, 0.5); /* Brilho */
+}
+
+/* =========================================
+   CARROSSEL DE HORÁRIOS (PAGINAÇÃO)
+   ========================================= */
+
+/* As bolinhas (Dots) */
+.carousel-indicators [data-bs-target] {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.2);
+    border: none;
+    margin: 0 4px;
+    transition: all 0.3s ease;
+}
+
+/* Bolinha Ativa (Laranja Brilhante) */
+.carousel-indicators .active {
+    background-color: var(--orange-primary) !important;
+    transform: scale(1.2);
+    box-shadow: 0 0 8px rgba(255, 107, 53, 0.6);
+}
+
+/* Input das Salas de Aula */
+.classroom-input-group {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    padding: 10px 15px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.classroom-input-group:focus-within {
+    border-color: var(--orange-primary); /* Brilha a borda quando digita */
+}
+
+.classroom-input {
+    background: transparent;
+    border: none;
+    color: white; /* Texto branco destaca mais */
+    text-align: right; /* Digita da direita para a esquerda */
+    font-size: 1rem;
+    min-width: 50px; /* Garante um tamanho mínimo */
+}
+
+.classroom-input:focus {
+    outline: none;
+}
+/* Ajuste do Label */
+.classroom-label {
+    font-size: 0.9rem;
+    color: #ccc;
+    font-weight: 500;
+}
+
+/* =========================================
+   SCROLL INTERNO NAS PENDÊNCIAS
+   ========================================= */
+
+/* Aplica o scroll nas duas listas (Mês e Semana) */
+#tasksList, #tasksWeekList {
+    /* Define uma altura máxima. Se passar disso, cria scroll */
+    max-height: 320px; 
+    
+    /* Ativa a rolagem vertical */
+    overflow-y: auto; 
+    overflow-x: hidden;
+    
+    /* Pequeno ajuste para o scroll não cortar a sombra dos cards */
+    padding: 4px;
+    padding-bottom: 15px;
+    
+    /* Comportamento de rolagem suave no celular */
+    -webkit-overflow-scrolling: touch;
+}
+
+/* --- ESTÉTICA: Esconder a barra de rolagem (Fica clean igual app) --- */
+
+/* Chrome, Safari e Opera */
+#tasksList::-webkit-scrollbar,
+#tasksWeekList::-webkit-scrollbar {
+    display: none;
+}
+
+/* Firefox, IE e Edge */
+#tasksList, #tasksWeekList {
+    -ms-overflow-style: none;  /* IE e Edge */
+    scrollbar-width: none;  /* Firefox */
+}  
+
+/* =========================================
+   SETAS DO CARROSSEL (FIXAS NOS CANTOS)
+   ========================================= */
+
+.carousel-control-prev, 
+.carousel-control-next {
+    background: none !important; 
+    opacity: 1 !important;
+    width: 40px !important; /* LARGURA FIXA PEQUENA: Impede cobrir o conteúdo */
+    top: 0;
+    bottom: 0;
+    z-index: 10; /* Garante que fique acima */
+}
+
+/* Encostar bem nos cantos */
+.carousel-control-prev { left: 0; justify-content: flex-start; padding-left: 5px; }
+.carousel-control-next { right: 0; justify-content: flex-end; padding-right: 5px; }
+
+/* Efeito ao passar o mouse */
+.carousel-control-prev:hover .bi,
+.carousel-control-next:hover .bi {
+    color: var(--orange-primary) !important;
+    transform: scale(1.2); 
+    transition: all 0.2s ease;
+    text-shadow: 0 0 10px var(--orange-primary);
+}
+
+.carousel-control-prev .bi,
+.carousel-control-next .bi {
+    transition: all 0.2s ease;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.9)); /* Sombra forte para ver em qlq fundo */
+}
+
+/* =========================================
+   RESPONSIVIDADE DAS SETAS
+   ========================================= */
+
+/* No celular (telas menores que 768px), ESCONDE as setas */
+@media (max-width: 768px) {
+    #scheduleCarousel .carousel-control-prev,
+    #scheduleCarousel .carousel-control-next {
+        display: none !important;
+    }
+}
+
+/* =========================================
+   CORREÇÃO DA SOBREPOSIÇÃO DAS SETAS
+   ========================================= */
+
+/* Apenas no PC (telas maiores que 768px) */
+@media (min-width: 769px) {
+    /* Empurra o container da lista para longe das setas */
+    #classroomsListContainer, 
+    #homeScheduleContainer {
+        margin-left: 50px !important;
+        margin-right: 50px !important;
+        /* O scrollbar vai junto com a margem, livrando a seta */
+    }
+}
+
+/* Garante que o scrollbar não fique colado no texto */
+#classroomsListContainer {
+    padding-right: 10px; /* Espaço extra interno */
+}
+
+/* Ajuste fino das setas para ficarem centralizadas verticalmente */
+.carousel-control-prev, 
+.carousel-control-next {
+    width: 40px !important;
+    background: rgba(0,0,0,0.2) !important; /* Fundo sutil para destacar a área de clique */
+    border-radius: 8px; /* Cantos arredondados */
+    top: 50% !important; /* Centraliza no meio vertical */
+    transform: translateY(-50%); /* Ajuste matemático do centro */
+    height: 60px !important; /* Altura fixa pequena, não pega a tela toda */
+    margin: 0 10px; /* Descola um pouquinho da borda da tela */
+}

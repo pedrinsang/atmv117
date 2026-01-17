@@ -9,7 +9,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     
-    <link rel="stylesheet" href="src/css/styles.css?v=17.0">
+    <link rel="stylesheet" href="src/css/styles.css?v=19.0">
     <link rel="stylesheet" href="src/css/auth-styles.css">
     
     <link rel="manifest" href="manifest.json">
@@ -71,11 +71,77 @@
 
     <div class="main-content">
         <div class="container">
+            
             <div id="listaPage" class="page-content active">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <div>
-                        <h2 class="fw-bold text-white mb-0">Olá, <span class="text-orange" id="userNameTitle">Veterinário</span>!</h2>
-                        <p class="text-muted small mb-0">Veja suas pendências veterinárias</p>
+                
+                <div class="schedule-header-card mb-4 p-0 overflow-hidden position-relative">  
+                    <div id="scheduleEmptyState" class="text-center py-5">
+                        <i class="bi bi-calendar-plus fs-1 text-orange mb-3"></i>
+                        <h5 class="text-white fw-bold">Organize seu Semestre</h5>
+                        <p class="text-muted small mb-3">Configure suas aulas para começar.</p>
+                        <button class="btn btn-orange rounded-pill px-4" onclick="openScheduleConfig()">
+                            Configurar Horários
+                        </button>
+                    </div>
+
+                    <div id="scheduleFilledState" style="display: none;">
+                        
+                        <div id="scheduleCarousel" class="carousel slide" data-bs-interval="false" data-bs-touch="true">
+                            <div class="carousel-inner">
+                                
+                                <div class="carousel-item active p-3 pb-5"> 
+                                    <div class="d-flex justify-content-between align-items-center mb-3 px-2"> 
+                                        <h5 class="fw-bold text-white m-0"><i class="bi bi-grid-3x3 me-2 text-orange"></i>Horário</h5>
+                                        
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <input type="radio" class="btn-check" name="scheduleView" id="viewDaily" autocomplete="off" checked onchange="renderHomeSchedule()">
+                                                <label class="btn btn-outline-secondary" for="viewDaily">Hoje</label>
+                            
+                                                <input type="radio" class="btn-check" name="scheduleView" id="viewWeekly" autocomplete="off" onchange="renderHomeSchedule()">
+                                                <label class="btn btn-outline-secondary" for="viewWeekly">Semana</label>
+                                            </div>
+                                            <button class="btn btn-sm btn-link text-muted p-0 ms-1" onclick="openScheduleConfig()"><i class="bi bi-gear-fill"></i></button>
+                                        </div>
+                                    </div>
+
+                                    <div id="homeScheduleContainer" style="min-height: 150px;"></div>
+                                </div>
+
+                                <div class="carousel-item p-3 pb-5">
+                                    <div class="d-flex justify-content-between align-items-center mb-3 px-2">
+                                        <h5 class="fw-bold text-white m-0"><i class="bi bi-geo-alt-fill me-2 text-orange"></i>Salas</h5>
+                                        <button class="btn btn-sm btn-outline-success py-0" onclick="saveClassrooms()">Salvar</button>
+                                    </div>
+                                    
+                                    <p class="text-muted small mb-2 text-center">Onde são suas aulas?</p>
+                                    
+                                    <div id="classroomsListContainer" class="d-flex flex-column gap-2" style="max-height: 220px; overflow-y: auto;"></div>
+                                </div>
+
+                            </div>
+
+                            <div class="carousel-indicators" style="margin-bottom: 0.5rem;">
+                                <button type="button" data-bs-target="#scheduleCarousel" data-bs-slide-to="0" class="active" aria-current="true"></button>
+                                <button type="button" data-bs-target="#scheduleCarousel" data-bs-slide-to="1"></button>
+                            </div>
+
+                            <button class="carousel-control-prev" type="button" data-bs-target="#scheduleCarousel" data-bs-slide="prev">
+                                <span class="bi bi-chevron-left fs-2 text-white hover-orange" aria-hidden="true"></span>
+                                <span class="visually-hidden">Anterior</span>
+                            </button>
+                            <button class="carousel-control-next" type="button" data-bs-target="#scheduleCarousel" data-bs-slide="next">
+                                <span class="bi bi-chevron-right fs-2 text-white hover-orange" aria-hidden="true"></span>
+                                <span class="visually-hidden">Próximo</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-clipboard-check text-orange fs-4 me-2"></i>
+                        <h5 class="fw-bold text-white m-0">Pendências</h5>
                     </div>
                 </div>
                 <ul class="nav nav-pills mb-4 gap-2" id="tasksTabs" role="tablist">
@@ -86,8 +152,21 @@
                     <div class="tab-pane fade show active" id="monthTasks"><div id="tasksList" class="row g-3"></div></div>
                     <div class="tab-pane fade" id="weekTasks"><div id="tasksWeekList" class="row g-3"></div></div>
                 </div>
-            </div>
 
+                <div class="mt-5 mb-4">
+                    <div class="d-flex align-items-center mb-3 ps-2">
+                        <i class="bi bi-newspaper text-orange fs-4 me-2"></i>
+                        <h5 class="fw-bold text-white m-0">Notícias & Editais</h5>
+                        <span class="badge bg-dark border border-secondary ms-auto text-muted small">UFSM</span>
+                    </div>
+                    <div id="ufsmNewsCarousel" class="news-carousel-container">
+                        <div class="d-flex flex-column align-items-center justify-content-center w-100 py-4 text-muted">
+                            <div class="spinner-border spinner-border-sm text-orange mb-2" role="status"></div>
+                            <span class="small">Buscando notícias...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div id="calendarioPage" class="page-content">
                 <div id="calendarPageView" class="calendar-page-container"></div>
             </div>
@@ -96,6 +175,7 @@
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h3 class="fw-bold text-white mb-0"><i class="bi bi-bell text-orange me-2"></i>Avisos</h3>
                 </div>
+                <div id="notificationsList"></div> 
                 <div id="mobileNotificationsList" class="d-flex flex-column gap-2"></div>
             </div>
 
@@ -107,6 +187,7 @@
                     <div id="complaintsList" class="mt-4"></div>
                 </div>
             </div>
+
             <div id="linksPage" class="page-content">
                 <h3 class="mb-4">Links Úteis</h3>
                 <div id="classLinksContainer" class="d-flex flex-wrap gap-3"></div>
@@ -114,6 +195,7 @@
                     <button id="btnAddClassLink" class="btn btn-sm btn-orange"><i class="bi bi-plus"></i> Novo Link</button>
                 </div>
             </div>
+
             <div id="aniversariosPage" class="page-content">
                 <h3 class="mb-4">Aniversários</h3>
                 <div class="card p-3 mb-4">
@@ -207,6 +289,83 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4" id="dayTasksModalBody"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="scheduleConfigModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-fullscreen">
+            <div class="modal-content bg-dark">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-white">Configurar Semestre</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div id="stepSelectSubjects" class="p-3">
+                        <div class="alert alert-dark border-orange text-white mb-3">
+                            <i class="bi bi-info-circle me-2 text-orange"></i>
+                            Selecione as cadeiras que você fará neste semestre.
+                        </div>
+                        <div class="accordion" id="semestersAccordion"></div>
+                    </div>
+
+                    <div id="stepBuildGrid" class="p-3" style="display: none;">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span class="text-muted small">Toque na célula para adicionar aula</span>
+                            <div class="btn-group" role="group">
+                                <input type="radio" class="btn-check" name="shiftSelect" id="shiftMorning" autocomplete="off" checked onchange="renderGridEditor()">
+                                <label class="btn btn-outline-orange btn-sm" for="shiftMorning">Manhã</label>
+
+                                <input type="radio" class="btn-check" name="shiftSelect" id="shiftAfternoon" autocomplete="off" onchange="renderGridEditor()">
+                                <label class="btn btn-outline-orange btn-sm" for="shiftAfternoon">Tarde</label>
+                            </div>
+                        </div>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-dark table-bordered text-center align-middle" id="gridEditorTable">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 60px;">H</th><th>Seg</th><th>Ter</th><th>Qua</th><th>Qui</th><th>Sex</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="gridEditorBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+    
+                    <button type="button" class="btn btn-outline-danger me-auto" onclick="resetUserSchedule()">
+                        <i class="bi bi-trash"></i> <span class="d-none d-sm-inline">Resetar</span>
+                    </button>
+
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-light" id="btnBackStep" style="display: none;" onclick="changeScheduleStep(1)">
+                            Voltar
+                        </button>
+                        <button type="button" class="btn btn-orange" id="btnNextStep" onclick="changeScheduleStep(2)">
+                            Montar <i class="bi bi-arrow-right"></i>
+                        </button>
+                        <button type="button" class="btn btn-success" id="btnSaveSchedule" style="display: none;" onclick="saveUserSchedule()">
+                            Salvar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="pickSubjectModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content bg-dark border-secondary">
+                <div class="modal-header border-bottom border-secondary py-2">
+                    <h6 class="modal-title text-white">Escolha a Matéria</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-2" id="pickSubjectList"></div>
+                <div class="modal-footer border-top border-secondary py-1">
+                     <button class="btn btn-sm btn-outline-danger w-100" onclick="clearSelectedCell()">Limpar Horário</button>
+                </div>
             </div>
         </div>
     </div>

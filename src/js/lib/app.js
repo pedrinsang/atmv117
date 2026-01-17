@@ -67,9 +67,8 @@ function initializeApp() {
     
     firebase.auth().onAuthStateChanged(async (user) => {
         if (user) {
+            // Inicializações básicas
             if (typeof loadBirthdaysIntoCache === 'function') loadBirthdaysIntoCache();
-            
-            // Inicializa sistema de notificações
             if (window.notificationSystem) setTimeout(() => window.notificationSystem.init(), 1000);
 
             let displayName = user.displayName;
@@ -82,20 +81,29 @@ function initializeApp() {
                 }
             } catch(e) { console.error(e); }
             
+            // Atualiza UI com nome do usuário
             const nameEl = document.getElementById('userNameTitle');
             if (nameEl) nameEl.textContent = (displayName || 'Veterinário').split(' ')[0];
-            
             const navNameEl = document.getElementById('navbarUserName');
             if (navNameEl) navNameEl.textContent = displayName || 'Usuário';
-
             const emailEl = document.getElementById('userEmail');
             if(emailEl) emailEl.textContent = user.email;
 
+            // Verificações de Admin e Bloqueio
             if (typeof isAdmin === 'function' && isAdmin()) document.getElementById('adminPanelOption').style.display = 'block';
             if (typeof checkUserBlocked === 'function') { if(await checkUserBlocked(user)) return; }
             
+            // Carrega Módulos Principais
             if (typeof loadTasks === 'function') loadTasks();
             if (typeof initializeCalendar === 'function') initializeCalendar();
+            
+            // INICIALIZA O SISTEMA DE HORÁRIOS
+            if (typeof initScheduleSystem === 'function') initScheduleSystem();
+            
+            // Tenta carregar as notícias se já estiver na home
+            if (document.getElementById('listaPage').classList.contains('active')) {
+                if(window.loadUfsmNews) window.loadUfsmNews();
+            }
             
         } else {
             const isPublicPage = window.location.pathname.includes('login.html') || window.location.pathname.includes('reset-password.html') || window.location.pathname.includes('register.html');
@@ -159,6 +167,9 @@ function toggleSidebar() {
     if (overlay) overlay.classList.toggle('show');
 }
 
+// ========================================
+// NAVEGAÇÃO ENTRE PÁGINAS
+// ========================================
 function navigateToPage(pageId) {
     document.querySelectorAll('.page-content').forEach(el => el.classList.remove('active'));
     const target = document.getElementById(pageId + 'Page');
@@ -169,10 +180,7 @@ function navigateToPage(pageId) {
     if (mainContent) {
         if (pageId === 'calendario') {
             mainContent.classList.add('calendar-mode');
-            
-            // RESET PARA O DIA ATUAL: Sempre que entrar no calendário, volta para hoje
             window.pageCalendarDate = new Date(); 
-            
         } else {
             mainContent.classList.remove('calendar-mode');
         }
@@ -191,15 +199,22 @@ function navigateToPage(pageId) {
     const sidebar = document.getElementById('sidebar');
     if (sidebar && sidebar.classList.contains('open')) toggleSidebar();
 
+    // Carregamentos Específicos
     if (pageId === 'calendario') {
         setTimeout(() => { 
             if(typeof initializeCalendarPage === 'function') {
                 if (document.getElementById('pageCalendarDays')) {
-                    renderPageCalendar(); // Redesenha com a data nova (hoje)
+                    renderPageCalendar(); 
                 } else {
                     initializeCalendarPage(); 
                 }
             } 
+        }, 100);
+    }
+    
+    if (pageId === 'lista') {
+        setTimeout(() => { 
+            if(window.loadUfsmNews) window.loadUfsmNews(); 
         }, 100);
     }
     
@@ -208,7 +223,6 @@ function navigateToPage(pageId) {
     if (pageId === 'notificacoes') {
         const badge = document.getElementById('bottomNavBadge');
         if(badge) badge.style.display = 'none';
-        // Renderiza notificações ao entrar na página
         if (window.notificationSystem) {
             window.notificationSystem.renderListFromCache(); 
         }
@@ -340,9 +354,7 @@ function renderPageCalendar(animationDir = 0) {
                 return `<div class="task-bar ${t.type}">${t.title}</div>`;
             }).join('');
 
-            // Limite visível no CSS será controlado via nth-type
-            // Calculamos o excesso baseado no limite de 2 (3º em diante escondido no hover)
-            const maxVisibleExpanded = 2;
+            const maxVisibleExpanded = 2; 
             const extraCount = allItems.length - maxVisibleExpanded;
             
             const moreLabel = extraCount > 0 
@@ -480,7 +492,7 @@ window.logout = function() { firebase.auth().signOut().then(() => window.locatio
 window.notificationSystem = {
     initialized: false,
     unsubscribe: null,
-    cacheSnapshot: null, // Cache para guardar o snapshot
+    cacheSnapshot: null,
 
     init: function() {
         if (this.initialized || !window.db || !firebase.auth().currentUser) return;
@@ -488,17 +500,15 @@ window.notificationSystem = {
 
         const user = firebase.auth().currentUser;
         
-        // Escuta as notificações em tempo real
         this.unsubscribe = window.db.collection('notifications')
             .orderBy('createdAt', 'desc')
             .limit(20)
             .onSnapshot(snapshot => {
-                this.cacheSnapshot = snapshot; // Salva no cache
+                this.cacheSnapshot = snapshot;
                 this.renderList(snapshot, user.uid);
             });
     },
 
-    // Função auxiliar para renderizar se já tiver cache (útil ao navegar entre páginas)
     renderListFromCache: function() {
         const user = firebase.auth().currentUser;
         if(this.cacheSnapshot && user) {
@@ -609,4 +619,540 @@ window.notificationSystem = {
 
         if (count > 0) await batch.commit();
     }
+};
+
+// ========================================
+// SISTEMA DE NOTÍCIAS (CCR: VETERINÁRIA & EDITAIS) - VERSÃO SMART
+// ========================================
+window.loadUfsmNews = function() {
+    const container = document.getElementById('ufsmNewsCarousel');
+    if (!container) return;
+    if (container.getAttribute('data-loaded') === 'true') return;
+
+    const rssUrl = 'https://www.ufsm.br/unidades-universitarias/ccr/feed';
+    const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
+
+    console.log('Filtrando notícias (Smart Filter)...');
+
+    fetch(apiUrl)
+        .then(response => {
+            if (!response.ok) throw new Error('Erro na API');
+            return response.json();
+        })
+        .then(data => {
+            if (data.status === 'ok' && data.items && data.items.length > 0) {
+                
+                // 1. FILTRO DE CONTEÚDO (O que entra no carrossel?)
+                const filteredItems = data.items.filter(item => {
+                    const text = (item.title + ' ' + item.description).toLowerCase();
+                    
+                    // Palavras que queremos
+                    const isVet = text.includes('veterinária') || text.includes('veterinário') || text.includes('mv');
+                    const isEdital = text.includes('edital') || text.includes('seleção') || text.includes('resultado') || text.includes('bolsa') || text.includes('retificação');
+                    
+                    return isVet || isEdital;
+                });
+
+                const itemsToShow = filteredItems.length > 0 ? filteredItems : data.items.slice(0, 5);
+                const isFallback = filteredItems.length === 0;
+
+                let html = '';
+                
+                itemsToShow.forEach(item => {
+                    // Imagem
+                    let imgUrl = 'src/img/logo-silhueta.png'; 
+                    if (item.enclosure && item.enclosure.link) imgUrl = item.enclosure.link;
+                    else if (item.thumbnail) imgUrl = item.thumbnail;
+                    else if (item.content) {
+                        const imgMatch = item.content.match(/src="([^"]+)"/);
+                        if (imgMatch && imgMatch[1]) imgUrl = imgMatch[1];
+                    }
+
+                    // --- LÓGICA DE ETIQUETA INTELIGENTE ---
+                    const titleLower = item.title.toLowerCase();
+                    
+                    // Palavras que indicam Edital
+                    const hasEditalKeyword = titleLower.includes('edital') || titleLower.includes('seleção') || titleLower.includes('resultado') || titleLower.includes('bolsa');
+                    
+                    // PALAVRAS PROIBIDAS (Blacklist)
+                    const isBlacklisted = titleLower.includes('incra') || titleLower.includes('famílias') || titleLower.includes('reforma agrária') || titleLower.includes('seleção brasileira');
+
+                    // Só marca como Edital se tiver a keyword E NÃO for proibido
+                    const isSmartEdital = hasEditalKeyword && !isBlacklisted;
+                    
+                    let labelColor = 'var(--orange-primary)'; 
+                    let labelText = '';
+                    
+                    try {
+                        const dateObj = new Date(item.pubDate.replace(/-/g, '/'));
+                        labelText = dateObj.toLocaleDateString('pt-BR', {day: '2-digit', month: 'short'});
+                    } catch(e) { labelText = 'NOVO'; }
+
+                    if (isSmartEdital) {
+                        labelColor = '#2ecc71'; // Verde
+                        labelText = `<i class="bi bi-file-earmark-text me-1"></i>EDITAL • ${labelText}`;
+                    }
+
+                    html += `
+                    <a href="${item.link}" target="_blank" class="news-card">
+                        <img src="${imgUrl}" class="news-card-img" onerror="this.src='src/img/logo-silhueta.png'" loading="lazy">
+                        <div class="news-card-overlay">
+                            <span class="news-date" style="color: ${labelColor};">${labelText}</span>
+                            <h6 class="news-title">${item.title}</h6>
+                        </div>
+                    </a>`;
+                });
+                
+                if (isFallback) {
+                    html += `<div class="d-flex align-items-center justify-content-center" style="min-width: 200px;">
+                                <span class="text-muted small text-center px-2">Mostrando notícias gerais do CCR.</span>
+                             </div>`;
+                }
+                
+                container.innerHTML = html;
+                container.setAttribute('data-loaded', 'true');
+            } else {
+                throw new Error('Lista vazia');
+            }
+        })
+        .catch(err => {
+            console.error('Erro:', err);
+            container.innerHTML = `<div class="text-muted small w-100 text-center py-3">Não foi possível carregar as notícias.</div>`;
+        });
+};
+
+// ========================================
+// SISTEMA DE HORÁRIOS ACADÊMICOS
+// ========================================
+
+const VET_CURRICULUM = [
+    { sem: 1, subjects: ["Anatomia dos Animais Domésticos A", "Bioquímica Geral", "Ecologia Veterinária", "Estatística Veterinária", "Genética Veterinária", "Histologia e Embriologia A", "Iniciação à Veterinária A", "Metodologia da Pesquisa A"] },
+    { sem: 2, subjects: ["Anatomia dos Animais Domésticos B", "Bioclimatologia", "Bioquímica Especial Veterinária", "Biossegurança Aplicada", "Fisiologia Veterinária A", "Histologia e Embriologia B", "Microbiologia Geral", "Sociologia Rural"] },
+    { sem: 3, subjects: ["Anatomia dos Animais Domésticos C", "Bem Estar Animal", "Bromatologia Animal", "Fisiologia Veterinária B", "Imunologia Geral", "Parasitologia Veterinária"] },
+    { sem: 4, subjects: ["Anatomia Topográfica", "Equideocultura", "Farmacologia Geral", "Forragicultura", "Microbiologia Veterinária", "Nutrição Animal", "Ovinocultura", "Patologia Geral Veterinária"] },
+    { sem: 5, subjects: ["Avicultura A", "Economia e Administração Rural", "Farmacologia Aplicada", "Legislação Agrária", "Patologia Clínica Veterinária", "Patologia Especial", "Semiologia Clínica Veterinária A", "Suinocultura"] },
+    { sem: 6, subjects: ["Anestesiologia Veterinária A", "Bovinocultura de Corte", "Bovinocultura de Leite", "Diagnóstico por Imagem", "Melhoramento Animal", "Semiologia Clínica Veterinária B", "Técnica Cirúrgica A"] },
+    { sem: 7, subjects: ["Andrologia Veterinária A", "Doenças das Aves", "Doenças Fúngicas", "Epidemiologia Geral", "Extensão Rural", "Patologia Cirúrgica A", "Tecnologia de Produtos Animal", "Terapêutica Veterinária A", "Toxicologia A"] },
+    { sem: 8, subjects: ["Clínica Cirúrgica Veterinária", "Clínica de Pequenos Animais A", "Doenças Infecto-Contagiosas", "Doenças Parasitárias", "Indústria e Inspeção de Carnes", "Saúde Pública Veterinária"] },
+    { sem: 9, subjects: ["Clínica de Pequenos Animais B", "Ginecologia Veterinária", "Medicina de Animais Selvagens A", "Medicina de Equinos", "Medicina de Ruminantes A", "Medicina de Suínos", "Obstetrícia Veterinária", "Ortopedia e Traumatologia"] },
+    { sem: 10, subjects: ["Estágio Supervisionado"] }
+];
+
+let currentUserSchedule = {}; // Horário
+let currentUserRooms = {}; // Salas
+let selectedSubjectsTemp = []; 
+let activeCell = null;
+
+// Inicializa ao carregar a página
+function initScheduleSystem() {
+    if (!window.currentUserData || !window.db || !firebase.auth().currentUser) return;
+    const uid = firebase.auth().currentUser.uid;
+
+    // Carrega horário e salas
+    window.db.collection('users').doc(uid).collection('schedule').doc('current').get()
+    .then(doc => {
+        if (doc.exists) {
+            currentUserSchedule = doc.data();
+            // Carrega salas
+            window.db.collection('users').doc(uid).collection('schedule').doc('rooms').get()
+            .then(roomDoc => {
+                if(roomDoc.exists) currentUserRooms = roomDoc.data();
+                
+                document.getElementById('scheduleEmptyState').style.display = 'none';
+                
+                // 1. Mostra a caixa (Torna visível)
+                const filledState = document.getElementById('scheduleFilledState');
+                filledState.style.display = 'block';
+                
+                // 2. Renderiza o conteúdo
+                renderHomeSchedule();
+                renderClassroomsSlide();
+
+                // 3. CORREÇÃO DO SWIPE TRAVADO:
+                // Inicializa o carrossel manualmente AGORA que ele está visível.
+                const carouselEl = document.getElementById('scheduleCarousel');
+                if (carouselEl) {
+                    // Pequeno delay para garantir que o navegador renderizou o "display: block"
+                    setTimeout(() => {
+                        new bootstrap.Carousel(carouselEl, {
+                            interval: false, // Não roda sozinho
+                            touch: true      // Garante o swipe
+                        });
+                    }, 50);
+                }
+            });
+        } else {
+            // Se não tiver horário, garante estado vazio
+            document.getElementById('scheduleEmptyState').style.display = 'block';
+            document.getElementById('scheduleFilledState').style.display = 'none';
+        }
+    })
+    .catch(err => console.log("Sem horário salvo ainda."));
+}
+
+// ========================================
+// FUNÇÃO DE RESET TOTAL
+// ========================================
+window.resetUserSchedule = function() {
+    if (!confirm("⚠️ TEM CERTEZA?\n\nIsso apagará todo o seu horário e as salas configuradas. Essa ação não pode ser desfeita.")) {
+        return;
+    }
+
+    if (!window.db || !firebase.auth().currentUser) return;
+    const uid = firebase.auth().currentUser.uid;
+    const batch = window.db.batch();
+
+    // Referências para apagar
+    const scheduleRef = window.db.collection('users').doc(uid).collection('schedule').doc('current');
+    const roomsRef = window.db.collection('users').doc(uid).collection('schedule').doc('rooms');
+
+    // Adiciona ao lote de exclusão
+    batch.delete(scheduleRef);
+    batch.delete(roomsRef);
+
+    // Executa
+    batch.commit().then(() => {
+        // 1. Limpa variáveis locais
+        currentUserSchedule = {};
+        currentUserRooms = {};
+        selectedSubjectsTemp = [];
+        activeCell = null;
+
+        // 2. Desmarca todos os checkboxes visualmente
+        document.querySelectorAll('.subject-checkbox').forEach(cb => cb.checked = false);
+
+        // 3. Reseta o Modal para o Passo 1
+        changeScheduleStep(1);
+
+        // 4. Fecha o modal
+        const modalEl = document.getElementById('scheduleConfigModal');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        modal.hide();
+
+        // 5. Atualiza a Home para o estado "Vazio"
+        document.getElementById('scheduleEmptyState').style.display = 'block';
+        document.getElementById('scheduleFilledState').style.display = 'none';
+
+        alert("Seu horário foi resetado com sucesso!");
+    })
+    .catch(err => {
+        console.error(err);
+        alert("Erro ao tentar resetar.");
+    });
+};
+
+// ========================================
+// FUNÇÃO AUXILIAR: FORMATA O NOME DA MATÉRIA (INTELIGENTE)
+// ========================================
+function formatSubjectName(fullName) {
+    if (!fullName) return { short: '', long: '' };
+
+    const ignore = ['de', 'da', 'do', 'dos', 'das', 'e', 'a', 'o', 'em', 'por', 'para', 'com', 'à', 'á'];
+
+    const customAbbr = {
+        'diagnóstico': 'Diag', 'diagnostico': 'Diag', 'imagem': 'Img',
+        'veterinária': 'Vet', 'veterinaria': 'Vet', 'cirúrgica': 'Cir', 'cirurgica': 'Cir',
+        'patologia': 'Pat', 'fisiologia': 'Fisio', 'anatomia': 'Anat',
+        'tecnologia': 'Tec', 'produção': 'Prod', 'inspeção': 'Insp',
+        'clínica': 'Clin', 'clinica': 'Clin', 'bovinocultura': 'Bov',
+        'suinocultura': 'Suíno', 'avicultura': 'Aves', 'equideocultura': 'Equi',
+        'ovinocultura': 'Ovinos', 'parasitologia': 'Parasito', 'microbiologia': 'Micro',
+        'farmacologia': 'Farma', 'epidemiologia': 'Epidem', 'toxicologia': 'Toxic',
+        'estatística': 'Estat', 'bioquímica': 'Bioquim', 'histologia': 'Histo',
+        'embriologia': 'Embrio', 'sociologia': 'Socio', 'imunologia': 'Imuno',
+        'zootecnia': 'Zoot', 'melhoramento': 'Melhor', 'semiologia': 'Semio',
+        'anestesiologia': 'Anest', 'obstetrícia': 'Obst', 'andrologia': 'Andro',
+        'ginecologia': 'Gineco', 'ortopedia': 'Ortop', 'deontologia': 'Deonto',
+        'zoonoses': 'Zoon', 'estágio': 'Estágio', 'trabalho': 'TCC',
+        'medicina': 'Med', 'domésticos': 'Dom'
+    };
+
+    const words = fullName.split(' ').filter(w => w.length > 0);
+    const meaningfulWords = words.filter(w => !ignore.includes(w.toLowerCase()));
+
+    if (meaningfulWords.length === 0) return { short: fullName.substring(0,3), long: fullName };
+
+    let w1 = meaningfulWords[0];
+    let shortName = customAbbr[w1.toLowerCase()] || w1.substring(0, 3);
+
+    if (meaningfulWords.length > 1) {
+        let w2 = meaningfulWords[1];
+        let short2 = '';
+        if (customAbbr[w2.toLowerCase()]) {
+            short2 = customAbbr[w2.toLowerCase()];
+        } else {
+            short2 = w2.substring(0, 1).toUpperCase();
+        }
+        shortName += ". " + short2;
+    }
+
+    return { short: shortName, long: fullName };
+}
+
+window.openScheduleConfig = function() {
+    renderSemesterAccordion();
+    changeScheduleStep(1);
+    new bootstrap.Modal(document.getElementById('scheduleConfigModal')).show();
+};
+
+function renderSemesterAccordion() {
+    const container = document.getElementById('semestersAccordion');
+    let html = '';
+    VET_CURRICULUM.forEach(sem => {
+        html += `
+        <div class="accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSem${sem.sem}">
+                    ${sem.sem}º Semestre
+                </button>
+            </h2>
+            <div id="collapseSem${sem.sem}" class="accordion-collapse collapse" data-bs-parent="#semestersAccordion">
+                <div class="accordion-body">
+                    ${sem.subjects.map(sub => `
+                        <div class="form-check">
+                            <input class="form-check-input subject-checkbox" type="checkbox" value="${sub}" id="chk_${sub.replace(/\s/g, '')}" onchange="updateSelectedSubjects(this)">
+                            <label class="form-check-label" for="chk_${sub.replace(/\s/g, '')}">${sub}</label>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>`;
+    });
+    container.innerHTML = html;
+}
+
+window.updateSelectedSubjects = function(checkbox) {
+    if (checkbox.checked) {
+        if (!selectedSubjectsTemp.includes(checkbox.value)) selectedSubjectsTemp.push(checkbox.value);
+    } else {
+        selectedSubjectsTemp = selectedSubjectsTemp.filter(s => s !== checkbox.value);
+    }
+};
+
+window.changeScheduleStep = function(step) {
+    if (step === 1) {
+        document.getElementById('stepSelectSubjects').style.display = 'block';
+        document.getElementById('stepBuildGrid').style.display = 'none';
+        document.getElementById('btnBackStep').style.display = 'none';
+        document.getElementById('btnNextStep').style.display = 'block';
+        document.getElementById('btnSaveSchedule').style.display = 'none';
+    } else {
+        if (selectedSubjectsTemp.length === 0) {
+            alert('Selecione pelo menos uma matéria.');
+            return;
+        }
+        document.getElementById('stepSelectSubjects').style.display = 'none';
+        document.getElementById('stepBuildGrid').style.display = 'block';
+        document.getElementById('btnBackStep').style.display = 'block';
+        document.getElementById('btnNextStep').style.display = 'none';
+        document.getElementById('btnSaveSchedule').style.display = 'block';
+        renderGridEditor();
+    }
+};
+
+window.renderGridEditor = function() {
+    const isMorning = document.getElementById('shiftMorning').checked;
+    const times = isMorning 
+        ? ['07:30', '08:30', '09:30', '10:30', '11:30', '12:30'] 
+        : ['13:30', '14:30', '15:30', '16:30', '17:30', '18:30', '19:30'];
+    
+    const days = ['seg', 'ter', 'qua', 'qui', 'sex'];
+    const tbody = document.getElementById('gridEditorBody');
+    let html = '';
+
+    times.forEach(time => {
+        html += `<tr>`;
+        html += `<td class="fw-bold text-orange">${time}</td>`;
+        days.forEach(day => {
+            const cellKey = `${day}_${time}`;
+            const subject = currentUserSchedule[cellKey] || '';
+            const filledClass = subject ? 'grid-filled' : '';
+            const names = formatSubjectName(subject);
+            
+            html += `<td class="${filledClass}" onclick="openPickSubjectModal('${day}', '${time}')" id="cell_${cellKey}" title="${names.long}">
+                        <span class="d-md-none">${names.short}</span>
+                        <span class="d-none d-md-block" style="font-size: 0.7rem;">${names.long}</span>
+                     </td>`;
+        });
+        html += `</tr>`;
+    });
+    tbody.innerHTML = html;
+};
+
+window.openPickSubjectModal = function(day, time) {
+    activeCell = { day, time };
+    const list = document.getElementById('pickSubjectList');
+    let html = selectedSubjectsTemp.map(sub => `
+        <button class="btn btn-outline-light w-100 mb-2 text-start" onclick="assignSubjectToCell('${sub}')">
+            ${sub}
+        </button>
+    `).join('');
+    list.innerHTML = html;
+    new bootstrap.Modal(document.getElementById('pickSubjectModal')).show();
+};
+
+window.assignSubjectToCell = function(subject) {
+    if (!activeCell) return;
+    const key = `${activeCell.day}_${activeCell.time}`;
+    currentUserSchedule[key] = subject;
+    renderGridEditor();
+    bootstrap.Modal.getInstance(document.getElementById('pickSubjectModal')).hide();
+};
+
+window.clearSelectedCell = function() {
+    if (!activeCell) return;
+    const key = `${activeCell.day}_${activeCell.time}`;
+    delete currentUserSchedule[key];
+    renderGridEditor();
+    bootstrap.Modal.getInstance(document.getElementById('pickSubjectModal')).hide();
+};
+
+window.saveUserSchedule = function() {
+    if (!window.db) return;
+    const uid = firebase.auth().currentUser.uid;
+    window.db.collection('users').doc(uid).collection('schedule').doc('current').set(currentUserSchedule)
+    .then(() => {
+        alert('Horário salvo com sucesso!');
+        bootstrap.Modal.getInstance(document.getElementById('scheduleConfigModal')).hide();
+        document.getElementById('scheduleEmptyState').style.display = 'none';
+        document.getElementById('scheduleFilledState').style.display = 'block';
+        renderHomeSchedule();
+        renderClassroomsSlide(); // Gera os inputs de sala
+    })
+    .catch(err => {
+        console.error(err);
+        alert('Erro ao salvar horário.');
+    });
+};
+
+window.renderHomeSchedule = function() {
+    const isDaily = document.getElementById('viewDaily').checked;
+    const container = document.getElementById('homeScheduleContainer');
+    
+    if (isDaily) {
+        const daysMap = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+        const todayKey = daysMap[new Date().getDay()];
+        if (todayKey === 'dom' || todayKey === 'sab') {
+            container.innerHTML = '<div class="text-center py-4 text-muted"><i class="bi bi-emoji-sunglasses fs-1"></i><p>Bom descanso! Sem aulas hoje.</p></div>';
+            return;
+        }
+        const todayClasses = [];
+        Object.keys(currentUserSchedule).forEach(key => {
+            const [day, time] = key.split('_');
+            if (day === todayKey) todayClasses.push({ time, subject: currentUserSchedule[key] });
+        });
+        todayClasses.sort((a, b) => a.time.localeCompare(b.time));
+
+        if (todayClasses.length === 0) {
+            container.innerHTML = '<div class="text-center py-4 text-muted"><p>Nenhuma aula hoje.</p></div>';
+            return;
+        }
+        let html = '<div class="d-flex flex-column">';
+        todayClasses.forEach(c => {
+            html += `<div class="daily-schedule-item"><div class="daily-time">${c.time}</div><div class="daily-subject text-white">${c.subject}</div></div>`;
+        });
+        html += '</div>';
+        container.innerHTML = html;
+
+    } else {
+        let html = `<div class="table-responsive"><table class="table table-dark table-bordered table-sm text-center align-middle" style="font-size: 0.65rem;">
+            <thead><tr><th style="width:10%">H</th><th style="width:18%">Seg</th><th style="width:18%">Ter</th><th style="width:18%">Qua</th><th style="width:18%">Qui</th><th style="width:18%">Sex</th></tr></thead><tbody>`;
+        
+        const allTimes = ['07:30', '08:30', '09:30', '10:30', '11:30', '12:30', '13:30', '14:30', '15:30', '16:30', '17:30', '18:30', '19:30'];
+        const days = ['seg', 'ter', 'qua', 'qui', 'sex'];
+
+        const activeTimes = allTimes.filter(time => days.some(day => currentUserSchedule[`${day}_${time}`]));
+        if (activeTimes.length === 0) { container.innerHTML = '<div class="text-center py-4 text-muted"><p>Semana livre!</p></div>'; return; }
+
+        activeTimes.forEach(time => {
+            let rowHtml = `<tr><td class="text-orange fw-bold">${time}</td>`;
+            days.forEach(day => {
+                const sub = currentUserSchedule[`${day}_${time}`];
+                if (sub) {
+                    const names = formatSubjectName(sub);
+                    rowHtml += `<td class="bg-success bg-opacity-25 p-1" title="${names.long}">
+                                    <span class="d-md-none fw-bold">${names.short}</span>
+                                    <span class="d-none d-md-block text-wrap" style="line-height:1.1;">${names.long}</span>
+                                </td>`;
+                } else {
+                    rowHtml += `<td></td>`;
+                }
+            });
+            rowHtml += `</tr>`;
+            html += rowHtml;
+        });
+        html += `</tbody></table></div>`;
+        container.innerHTML = html;
+    }
+};
+
+// ========================================
+// SISTEMA DE SALAS DE AULA (SLIDE 2) - ATUALIZADO
+// ========================================
+window.renderClassroomsSlide = function() {
+    const container = document.getElementById('classroomsListContainer');
+    if (!container) return;
+
+    const subjects = new Set(Object.values(currentUserSchedule));
+    
+    if (subjects.size === 0) {
+        container.innerHTML = '<div class="text-center text-muted small mt-4">Nenhuma matéria configurada.</div>';
+        return;
+    }
+
+    let html = '';
+    subjects.forEach(sub => {
+        // Formata nome (Curto e Longo)
+        const names = formatSubjectName(sub);
+        const savedRoom = currentUserRooms[sub] || '';
+
+        html += `
+        <div class="classroom-input-group d-flex align-items-center gap-3">
+            
+            <div class="classroom-label text-truncate flex-shrink-0" style="max-width: 50%;">
+                
+                <span class="d-md-none fw-bold text-orange" style="font-size: 1rem;">
+                    ${names.short}
+                </span>
+
+                <span class="d-none d-md-block" title="${names.long}">
+                    ${names.long}
+                </span>
+
+            </div>
+
+            <input type="text" class="classroom-input flex-grow-1" 
+                   placeholder="Sala / Prédio..." 
+                   value="${savedRoom}" 
+                   onchange="updateRoomValue('${sub}', this.value)">
+        </div>`;
+    });
+
+    container.innerHTML = html;
+};
+
+window.updateRoomValue = function(subjectName, roomValue) {
+    currentUserRooms[subjectName] = roomValue;
+};
+
+window.saveClassrooms = function() {
+    if (!window.db) return;
+    const uid = firebase.auth().currentUser.uid;
+    const btn = document.querySelector('#scheduleCarousel .btn-outline-success');
+    
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<div class="spinner-border spinner-border-sm"></div>';
+
+    window.db.collection('users').doc(uid).collection('schedule').doc('rooms').set(currentUserRooms)
+    .then(() => {
+        setTimeout(() => {
+            btn.innerHTML = '<i class="bi bi-check2"></i> Salvo!';
+            btn.classList.replace('btn-outline-success', 'btn-success');
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.classList.replace('btn-success', 'btn-outline-success');
+            }, 2000);
+        }, 500);
+    })
+    .catch(err => { console.error(err); btn.innerHTML = 'Erro'; });
 };
