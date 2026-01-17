@@ -767,3 +767,46 @@ body {
 .carousel-item {
     user-select: none; /* Opcional: impede seleção de texto acidental ao deslizar */
 }
+
+/* =========================================
+   ESTABILIDADE DO CARROSSEL (CORREÇÃO BUG VISUAL)
+   ========================================= */
+
+/* 1. Define a altura fixa */
+#scheduleCarousel .carousel-item {
+    height: 340px;
+    /* IMPORTANTE: Removemos o display:flex daqui para não mostrar os slides ocultos */
+}
+
+/* 2. Aplica o layout flexível APENAS no slide que está visível (Active) */
+#scheduleCarousel .carousel-item.active {
+    display: flex;
+    flex-direction: column;
+}
+
+/* 3. Garante que o conteúdo interno ocupe o espaço e tenha scroll */
+#homeScheduleContainer,
+#classroomsListContainer {
+    flex-grow: 1; /* Ocupa todo o espaço que sobrar abaixo do título */
+    width: 100%;
+    overflow-y: auto; /* Cria scroll se passar da altura */
+    overflow-x: hidden;
+}
+
+/* --- Esconde a barra de rolagem interna --- */
+#homeScheduleContainer::-webkit-scrollbar,
+#classroomsListContainer::-webkit-scrollbar {
+    display: none;
+}
+#homeScheduleContainer,
+#classroomsListContainer {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Ajuste para telas muito pequenas */
+@media (max-height: 700px) {
+    #scheduleCarousel .carousel-item {
+        height: 300px;
+    }
+}
