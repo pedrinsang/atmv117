@@ -706,3 +706,38 @@ body {
     height: 60px !important; /* Altura fixa pequena, não pega a tela toda */
     margin: 0 10px; /* Descola um pouquinho da borda da tela */
 }
+
+/* =========================================
+   CUSTOMIZAÇÃO DE CORES (LARANJA)
+   ========================================= */
+
+/* --- Acordeão (Lista de Semestres) --- */
+
+/* Cabeçalho do acordeão quando está ABERTO */
+.accordion-button:not(.collapsed) {
+    color: var(--orange-primary) !important; /* Texto laranja */
+    background-color: rgba(255, 107, 53, 0.15) !important; /* Fundo laranja bem suave */
+    box-shadow: none !important; /* Remove o brilho azul padrão */
+}
+
+/* Muda a cor da setinha (ícone) para laranja quando aberto */
+.accordion-button:not(.collapsed)::after {
+    /* Ícone SVG pintado de laranja (#ff6b35) */
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23ff6b35'%3e%3cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3e%3c/svg%3e") !important;
+}
+
+/* --- Checkboxes (Caixas de Seleção) --- */
+
+/* Quando o checkbox está MARCADO */
+.form-check-input:checked {
+    background-color: var(--orange-primary) !important; /* Fundo laranja */
+    border-color: var(--orange-primary) !important; /* Borda laranja */
+    /* Garante que o 'check' (✓) continue branco */
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M6 10l3 3l6-6'/%3e%3c/svg%3e") !important;
+}
+
+/* Efeito de foco (quando você clica ou navega com teclado) */
+.form-check-input:focus {
+    border-color: var(--orange-primary) !important;
+    box-shadow: 0 0 0 0.25rem rgba(255, 107, 53, 0.25) !important; /* Brilho laranja suave */
+}

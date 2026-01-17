@@ -85,7 +85,7 @@ function initializeApp() {
             const nameEl = document.getElementById('userNameTitle');
             if (nameEl) nameEl.textContent = (displayName || 'Veterinário').split(' ')[0];
             const navNameEl = document.getElementById('navbarUserName');
-            if (navNameEl) navNameEl.textContent = displayName || 'Usuário';
+            if (navNameEl) navNameEl.textContent = (displayName || 'Usuário').split(' ')[0];
             const emailEl = document.getElementById('userEmail');
             if(emailEl) emailEl.textContent = user.email;
 
