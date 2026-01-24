@@ -172,10 +172,10 @@ body {
 .task-bars { display: none; flex-direction: column; gap: 2px; margin-top: 4px; }
 .task-bar { font-size: 0.65rem; padding: 2px 4px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: white; font-weight: 500; text-align: left; }
 
-.task-dot.prova, .task-bar.prova, .legend-dot.prova { background-color: #ff4757; }
-.task-dot.trabalho, .task-bar.trabalho, .legend-dot.trabalho { background-color: #2ed573; }
+.task-dot.prova, .task-bar.prova, .legend-dot.prova { background-color: #ff0015; }
+.task-dot.trabalho, .task-bar.trabalho, .legend-dot.trabalho { background-color: #00ff6a; }
 .task-dot.atividade, .task-bar.atividade, .legend-dot.atividade { background-color: #ffa502; }
-.task-dot.aniversario, .task-bar.aniversario, .legend-dot.aniversario { background-color: #00d2d3; box-shadow: 0 0 5px #00d2d3; }
+.task-dot.aniversario, .task-bar.aniversario, .legend-dot.aniversario { background-color: #00aaff; box-shadow: 0 0 5px #00aaff; }
 .legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
 
 /* Tablet */
@@ -808,5 +808,33 @@ body {
 @media (max-height: 700px) {
     #scheduleCarousel .carousel-item {
         height: 280px;
+    }
+}
+
+/* =========================================
+   CORREÇÃO DE SOBREPOSIÇÃO NO PC (ZONA DE PROTEÇÃO)
+   ========================================= */
+
+/* Aplica apenas em telas grandes (PCs e Monitores > 992px) */
+@media (min-width: 992px) {
+    #scheduleCarousel .carousel-item {
+        /* Cria o espaço para as setas nas laterais */
+        padding-left: 70px !important; 
+        padding-right: 70px !important;
+    }
+
+    /* O PULO DO GATO: Removemos a margem antiga do notebook para não somar */
+    #classroomsListContainer, 
+    #homeScheduleContainer {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+
+    /* Cola as setas nas bordas extremas da tela */
+    #scheduleCarousel .carousel-control-prev {
+        left: 5px !important;
+    }
+    #scheduleCarousel .carousel-control-next {
+        right: 5px !important;
     }
 }
