@@ -1,4 +1,4 @@
-const CACHE_NAME = 'atmv117-v7'; // Mudei a versão para forçar atualização
+const CACHE_NAME = 'atmv117-v8'; // Mudei a versão para forçar atualização
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
