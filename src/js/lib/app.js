@@ -534,66 +534,84 @@ window.notificationSystem = {
 // ========================================
 // SISTEMA DE NOTÍCIAS (100% FIREBASE - RÁPIDO E SEGURO)
 // ========================================
+// ========================================
+// SISTEMA DE NOTÍCIAS (VIA BOT - GITHUB ACTIONS)
+// ========================================
 window.loadUfsmNews = async function() {
     const container = document.getElementById('ufsmNewsCarousel');
     if (!container) return;
     if (container.getAttribute('data-loaded') === 'true') return;
 
-    let allNews = [];
-
     try {
-        // 1. Busca Notícias Manuais (Destaques)
-        const manualSnap = await window.db.collection('manual_news').orderBy('date', 'desc').limit(5).get();
-        manualSnap.forEach(doc => {
-            const d = doc.data();
-            allNews.push({ ...d, isManual: true });
+        // Busca apenas as notícias coletadas pelo robô
+        const snapshot = await window.db.collection('auto_news')
+            .orderBy('date', 'desc')
+            .limit(15) // Pega as 15 mais recentes
+            .get();
+
+        if (snapshot.empty) {
+            container.innerHTML = `<div class="text-muted small w-100 text-center py-3">Nenhuma notícia encontrada.</div>`;
+            return;
+        }
+
+        let allNews = [];
+        snapshot.forEach(doc => {
+            allNews.push(doc.data());
         });
 
-        // 2. Busca Notícias Automáticas (Coletadas pelo Robô)
-        // Note que agora lemos 'auto_news', não 'feed' externo
-        const autoSnap = await window.db.collection('auto_news').orderBy('date', 'desc').limit(10).get();
-        autoSnap.forEach(doc => {
-            const d = doc.data();
-            allNews.push({ ...d, isManual: false });
+        // Renderiza
+        let html = '';
+        allNews.forEach(item => {
+            // Tratamento de Data
+            let dateDisplay = 'Recente';
+            if (item.date) {
+                const parts = item.date.split('-'); // YYYY-MM-DD
+                if (parts.length === 3) dateDisplay = `${parts[2]}/${parts[1]}`;
+            }
+
+            // --- LÓGICA DE DIFERENCIAÇÃO (O CÉREBRO VISUAL) ---
+            const titleLower = (item.title || '').toLowerCase();
+            
+            // Palavras que indicam documento importante
+            const isEdital = titleLower.includes('edital') || 
+                             titleLower.includes('seleção') || 
+                             titleLower.includes('bolsa') || 
+                             titleLower.includes('resultado') ||
+                             titleLower.includes('retificação') ||
+                             titleLower.includes('prae');
+
+            let labelColor = 'var(--orange-primary)'; // Laranja (Padrão)
+            let labelText = dateDisplay;
+            let titleColor = ''; // Branco padrão
+
+            if (isEdital) {
+                // Visual de Edital (Amarelo Dourado)
+                labelColor = '#f1c40f'; 
+                labelText = `<i class="bi bi-file-earmark-text-fill"></i> EDITAL • ${dateDisplay}`;
+                // Opcional: Deixar o título levemente amarelado também para chamar atenção
+                titleColor = 'color: #fceeb5;'; 
+            }
+
+            // Imagem (Usa a do feed ou a silhueta padrão)
+            const imgUrl = item.img || 'src/img/logo-silhueta.png';
+
+            html += `
+            <a href="${item.link}" target="_blank" class="news-card">
+                <img src="${imgUrl}" class="news-card-img" onerror="this.src='src/img/logo-silhueta.png'" loading="lazy">
+                <div class="news-card-overlay">
+                    <span class="news-date" style="color: ${labelColor}; font-weight: bold;">${labelText}</span>
+                    <h6 class="news-title" style="${titleColor}">${item.title}</h6>
+                </div>
+            </a>`;
         });
+
+        container.innerHTML = html;
+        container.setAttribute('data-loaded', 'true');
 
     } catch (e) {
-        console.error("Erro ao carregar notícias:", e);
-        container.innerHTML = `<div class="text-muted small w-100 text-center py-3">Erro ao conectar com as notícias.</div>`;
-        return;
+        console.error("Erro notícias:", e);
+        container.innerHTML = `<div class="text-muted small w-100 text-center py-3">Erro ao carregar notícias.</div>`;
     }
-
-    if (allNews.length === 0) {
-        container.innerHTML = `<div class="text-muted small w-100 text-center py-3">Nenhuma notícia recente.</div>`;
-        return;
-    }
-
-    // Ordena por data (Manuais e Automáticas misturadas corretamente)
-    allNews.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    // Renderiza
-    let html = '';
-    allNews.forEach(item => {
-        const dateParts = item.date.split('-');
-        const dayMonth = `${dateParts[2]}/${dateParts[1]}`;
-        
-        const labelColor = item.isManual ? '#2ecc71' : 'var(--orange-primary)';
-        const labelText = item.isManual ? `<i class="bi bi-pin-angle-fill"></i> DESTAQUE` : dayMonth;
-        // Se for automática e não tiver imagem, usa o logo padrão
-        const imgUrl = item.img || 'src/img/logo-silhueta.png';
-
-        html += `
-        <a href="${item.link}" target="_blank" class="news-card" style="${item.isManual ? 'border: 1px solid #2ecc71;' : ''}">
-            <img src="${imgUrl}" class="news-card-img" onerror="this.src='src/img/logo-silhueta.png'" loading="lazy">
-            <div class="news-card-overlay">
-                <span class="news-date" style="color: ${labelColor};">${labelText}</span>
-                <h6 class="news-title">${item.title}</h6>
-            </div>
-        </a>`;
-    });
-
-    container.innerHTML = html;
-    container.setAttribute('data-loaded', 'true');
 };
 
 // ========================================
