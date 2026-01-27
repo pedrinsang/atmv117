@@ -1,0 +1,30 @@
+name: Verificação Diária da Turma
+
+on:
+  schedule:
+    # Roda todo dia às 11:00 UTC (que é 08:00 no Brasil)
+    - cron: '0 11 * * *'
+  # Permite rodar manualmente para testar (botão "Run workflow")
+  workflow_dispatch:
+
+jobs:
+  notificar:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Baixar código
+      uses: actions/checkout@v3
+
+    - name: Instalar Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18
+
+    - name: Instalar Dependência do Firebase
+      run: npm install firebase-admin
+
+    - name: Rodar Script de Notificação
+      env:
+        # Pega a chave que salvamos nos Secrets
+        FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      run: node daily-check.js
