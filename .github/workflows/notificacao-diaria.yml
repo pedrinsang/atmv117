@@ -1,14 +1,13 @@
-name: Verificação Diária da Turma
+name: Rotina do App (Notícias + Lembretes)
 
 on:
   schedule:
-    # Roda todo dia às 11:00 UTC (08:00 no Brasil)
-    - cron: '0 11 * * *'
-  # Permite rodar manualmente para testar (botão "Run workflow")
-  workflow_dispatch:
+    # Roda a cada 6 horas (para pegar notícias frescas)
+    - cron: '0 */6 * * *'
+  workflow_dispatch: # Permite rodar manualmente
 
 jobs:
-  notificar:
+  rotina-geral:
     runs-on: ubuntu-latest
 
     steps:
@@ -20,13 +19,16 @@ jobs:
       with:
         node-version: 18
 
-    - name: Instalar Dependência do Firebase
-      # Instala na raiz do projeto, onde o Node consegue achar
-      run: npm install firebase-admin
+    - name: Instalar Dependências
+      # Adicionamos rss-parser aqui
+      run: npm install firebase-admin rss-parser
 
-    - name: Rodar Script de Notificação
+    - name: 1. Rodar Buscador de Notícias
       env:
-        # Pega a chave que você salvou nos Secrets do GitHub
         FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-      # AQUI ESTÁ A MUDANÇA: Apontamos para a pasta scripts/
+      run: node scripts/news-scraper.js
+
+    - name: 2. Rodar Lembretes de Tarefas
+      env:
+        FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       run: node scripts/daily-checks.js

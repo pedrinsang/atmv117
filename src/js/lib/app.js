@@ -532,45 +532,68 @@ window.notificationSystem = {
 };
 
 // ========================================
-// SISTEMA DE NOTÍCIAS (CCR)
+// SISTEMA DE NOTÍCIAS (100% FIREBASE - RÁPIDO E SEGURO)
 // ========================================
-window.loadUfsmNews = function() {
+window.loadUfsmNews = async function() {
     const container = document.getElementById('ufsmNewsCarousel');
     if (!container) return;
     if (container.getAttribute('data-loaded') === 'true') return;
-    const rssUrl = 'https://www.ufsm.br/unidades-universitarias/ccr/feed';
-    const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
-    fetch(apiUrl).then(response => { if (!response.ok) throw new Error('Erro API'); return response.json(); })
-        .then(data => {
-            if (data.status === 'ok' && data.items && data.items.length > 0) {
-                const filteredItems = data.items.filter(item => {
-                    const text = (item.title + ' ' + item.description).toLowerCase();
-                    const isVet = text.includes('veterinária') || text.includes('veterinário') || text.includes('mv');
-                    const isEdital = text.includes('edital') || text.includes('seleção') || text.includes('resultado') || text.includes('bolsa') || text.includes('retificação');
-                    return isVet || isEdital;
-                });
-                const itemsToShow = filteredItems.length > 0 ? filteredItems : data.items.slice(0, 5);
-                const isFallback = filteredItems.length === 0;
-                let html = '';
-                itemsToShow.forEach(item => {
-                    let imgUrl = 'src/img/logo-silhueta.png'; 
-                    if (item.enclosure && item.enclosure.link) imgUrl = item.enclosure.link;
-                    else if (item.thumbnail) imgUrl = item.thumbnail;
-                    else if (item.content) { const imgMatch = item.content.match(/src="([^"]+)"/); if (imgMatch && imgMatch[1]) imgUrl = imgMatch[1]; }
-                    const titleLower = item.title.toLowerCase();
-                    const hasEditalKeyword = titleLower.includes('edital') || titleLower.includes('seleção') || titleLower.includes('resultado') || titleLower.includes('bolsa');
-                    const isBlacklisted = titleLower.includes('incra') || titleLower.includes('famílias') || titleLower.includes('reforma agrária') || titleLower.includes('seleção brasileira');
-                    const isSmartEdital = hasEditalKeyword && !isBlacklisted;
-                    let labelColor = 'var(--orange-primary)'; let labelText = '';
-                    try { const dateObj = new Date(item.pubDate.replace(/-/g, '/')); labelText = dateObj.toLocaleDateString('pt-BR', {day: '2-digit', month: 'short'}); } catch(e) { labelText = 'NOVO'; }
-                    if (isSmartEdital) { labelColor = '#2ecc71'; labelText = `<i class="bi bi-file-earmark-text me-1"></i>EDITAL • ${labelText}`; }
-                    html += `<a href="${item.link}" target="_blank" class="news-card"><img src="${imgUrl}" class="news-card-img" onerror="this.src='src/img/logo-silhueta.png'" loading="lazy"><div class="news-card-overlay"><span class="news-date" style="color: ${labelColor};">${labelText}</span><h6 class="news-title">${item.title}</h6></div></a>`;
-                });
-                if (isFallback) { html += `<div class="d-flex align-items-center justify-content-center" style="min-width: 200px;"><span class="text-muted small text-center px-2">Mostrando notícias gerais do CCR.</span></div>`; }
-                container.innerHTML = html;
-                container.setAttribute('data-loaded', 'true');
-            } else { throw new Error('Lista vazia'); }
-        }).catch(err => { console.error('Erro:', err); container.innerHTML = `<div class="text-muted small w-100 text-center py-3">Não foi possível carregar as notícias.</div>`; });
+
+    let allNews = [];
+
+    try {
+        // 1. Busca Notícias Manuais (Destaques)
+        const manualSnap = await window.db.collection('manual_news').orderBy('date', 'desc').limit(5).get();
+        manualSnap.forEach(doc => {
+            const d = doc.data();
+            allNews.push({ ...d, isManual: true });
+        });
+
+        // 2. Busca Notícias Automáticas (Coletadas pelo Robô)
+        // Note que agora lemos 'auto_news', não 'feed' externo
+        const autoSnap = await window.db.collection('auto_news').orderBy('date', 'desc').limit(10).get();
+        autoSnap.forEach(doc => {
+            const d = doc.data();
+            allNews.push({ ...d, isManual: false });
+        });
+
+    } catch (e) {
+        console.error("Erro ao carregar notícias:", e);
+        container.innerHTML = `<div class="text-muted small w-100 text-center py-3">Erro ao conectar com as notícias.</div>`;
+        return;
+    }
+
+    if (allNews.length === 0) {
+        container.innerHTML = `<div class="text-muted small w-100 text-center py-3">Nenhuma notícia recente.</div>`;
+        return;
+    }
+
+    // Ordena por data (Manuais e Automáticas misturadas corretamente)
+    allNews.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    // Renderiza
+    let html = '';
+    allNews.forEach(item => {
+        const dateParts = item.date.split('-');
+        const dayMonth = `${dateParts[2]}/${dateParts[1]}`;
+        
+        const labelColor = item.isManual ? '#2ecc71' : 'var(--orange-primary)';
+        const labelText = item.isManual ? `<i class="bi bi-pin-angle-fill"></i> DESTAQUE` : dayMonth;
+        // Se for automática e não tiver imagem, usa o logo padrão
+        const imgUrl = item.img || 'src/img/logo-silhueta.png';
+
+        html += `
+        <a href="${item.link}" target="_blank" class="news-card" style="${item.isManual ? 'border: 1px solid #2ecc71;' : ''}">
+            <img src="${imgUrl}" class="news-card-img" onerror="this.src='src/img/logo-silhueta.png'" loading="lazy">
+            <div class="news-card-overlay">
+                <span class="news-date" style="color: ${labelColor};">${labelText}</span>
+                <h6 class="news-title">${item.title}</h6>
+            </div>
+        </a>`;
+    });
+
+    container.innerHTML = html;
+    container.setAttribute('data-loaded', 'true');
 };
 
 // ========================================
