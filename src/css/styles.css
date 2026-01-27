@@ -838,3 +838,110 @@ body {
         right: 5px !important;
     }
 }
+
+/* =========================================
+   NOVA UI DE ANIVERSÁRIOS (PREMIUM)
+   ========================================= */
+
+.bday-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+}
+
+.bday-card:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-3px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+/* A "Caixinha" da Data */
+.bday-date-box {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    width: 55px;
+    height: 55px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.bday-day {
+    font-size: 1.4rem;
+    font-weight: 800;
+    line-height: 1;
+    color: white;
+}
+
+.bday-month {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    color: var(--orange-primary);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+}
+
+/* Informações do Aniversariante */
+.bday-info h6 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: white;
+    margin: 0;
+    line-height: 1.2;
+}
+
+.bday-countdown {
+    font-size: 0.75rem;
+    color: #888;
+    margin-top: 3px;
+    display: block;
+}
+
+/* Ícone de Editar (Sutil) */
+.bday-edit-icon {
+    margin-left: auto; /* Empurra para a direita */
+    color: #444;
+    transition: 0.2s;
+}
+.bday-card:hover .bday-edit-icon { color: var(--orange-primary); }
+
+/* --- ESTILOS ESPECIAIS (HOJE) --- */
+.bday-card.is-today {
+    background: linear-gradient(135deg, rgba(255, 107, 53, 0.15), rgba(0,0,0,0));
+    border-color: var(--orange-primary);
+    box-shadow: 0 0 20px rgba(255, 107, 53, 0.15);
+}
+
+.bday-card.is-today .bday-date-box {
+    background: var(--orange-primary);
+    border-color: var(--orange-primary);
+    box-shadow: 0 4px 10px rgba(255, 107, 53, 0.4);
+}
+
+.bday-card.is-today .bday-day { color: white; }
+.bday-card.is-today .bday-month { color: rgba(0,0,0,0.7); } /* Preto translúcido para contraste no laranja */
+
+.bday-card.is-today .bday-countdown {
+    color: var(--orange-primary);
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+}
+
+/* Próximo (Amanhã ou perto) */
+.bday-card.is-soon .bday-countdown {
+    color: #2ecc71; /* Verde */
+}

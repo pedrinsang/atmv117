@@ -1,138 +1,225 @@
-// ========================================
-// SISTEMA DE ANIVERSÁRIOS
-// ========================================
+// =================================================================
+// SISTEMA DE ANIVERSÁRIOS (LISTA + CALENDÁRIO + BUSCA)
+// =================================================================
 
-// Cache Global para o Calendário
-window.globalBirthdays = [];
+// Cache global
+window.birthdayCache = [];
 
-// Função para carregar aniversários para uso global (Calendário)
-async function loadBirthdaysIntoCache() {
+// 1. Carrega dados para a memória (Listener em Tempo Real)
+window.loadBirthdaysIntoCache = function() {
     if (!window.db) return;
-    try {
-        const snapshot = await window.db.collection('birthdays').get();
-        window.globalBirthdays = [];
+
+    window.db.collection('birthdays').onSnapshot(snapshot => {
+        window.birthdayCache = [];
         snapshot.forEach(doc => {
-            window.globalBirthdays.push({ id: doc.id, ...doc.data() });
+            window.birthdayCache.push({ id: doc.id, ...doc.data() });
         });
-        console.log('🎂 Aniversários carregados:', window.globalBirthdays.length);
         
-        // Se a página de calendário estiver aberta, renderiza novamente
-        if (document.getElementById('calendarioPage').classList.contains('active')) {
+        // A. Atualiza pontinhos do calendário
+        if (document.getElementById('pageCalendarDays')) {
             if (typeof renderPageCalendar === 'function') renderPageCalendar();
         }
-    } catch (e) {
-        console.error('Erro ao cachear aniversários:', e);
-    }
-}
 
-// Carrega todos os aniversários (Lista da Página)
-async function loadBirthdays() {
-    if (!window.db) return;
-    try {
-        const snapshot = await window.db.collection('birthdays').orderBy('month').orderBy('day').get();
-        const container = document.getElementById('allBirthdays');
-        if (!container) return;
-        
-        container.innerHTML = '';
-        if (snapshot.empty) {
-            container.innerHTML = '<div class="col-12 text-muted text-center py-3">Nenhum aniversário cadastrado.</div>';
-            return;
+        // B. Atualiza a lista (respeitando a busca atual, se houver)
+        if (document.getElementById('birthdaysListContainer')) {
+            window.filterBirthdays(); 
         }
-        
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            const div = document.createElement('div');
-            div.className = 'col-6 col-md-4 col-lg-3';
-            div.innerHTML = `
-                <div class="card p-2 text-center h-100 position-relative">
-                    <div class="fw-bold text-orange text-truncate">${escapeHtml(data.name)}</div>
-                    <div class="small text-white">${data.day}/${data.month + 1}</div>
-                    ${(window.auth.currentUser && data.addedBy === window.auth.currentUser.uid) ? 
-                        `<button onclick="deleteBirthday('${doc.id}')" class="btn btn-sm text-danger position-absolute top-0 end-0 p-1"><i class="bi bi-trash"></i></button>` : ''}
-                </div>`;
-            container.appendChild(div);
-        });
-    } catch (e) { console.error(e); }
-}
-
-async function loadUpcomingBirthdays() {
-    if (!window.db) return;
-    try {
-        const snapshot = await window.db.collection('birthdays').get();
-        const container = document.getElementById('upcomingBirthdays');
-        if (!container) return;
-        
-        const today = new Date();
-        const upcoming = [];
-        
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            let nextBirthday = new Date(today.getFullYear(), data.month, data.day);
-            if (nextBirthday < today && (data.month !== today.getMonth() || data.day !== today.getDate())) {
-                nextBirthday.setFullYear(today.getFullYear() + 1);
-            }
-            const diffDays = Math.ceil((nextBirthday - today) / (1000 * 60 * 60 * 24));
-            if (diffDays >= 0 && diffDays <= 45) {
-                upcoming.push({ ...data, diffDays, id: doc.id });
-            }
-        });
-        
-        upcoming.sort((a, b) => a.diffDays - b.diffDays);
-        container.innerHTML = upcoming.length ? '' : '<div class="text-muted small">Ninguém soprando velinhas em breve.</div>';
-        
-        upcoming.forEach(b => {
-            const dayText = b.diffDays === 0 ? 'Hoje!' : (b.diffDays === 1 ? 'Amanhã' : `Em ${b.diffDays} dias`);
-            const div = document.createElement('div');
-            div.className = 'd-flex justify-content-between align-items-center bg-dark p-2 rounded border border-secondary';
-            div.innerHTML = `<div><span class="fw-bold text-white">${escapeHtml(b.name)}</span><small class="text-muted d-block">${b.day}/${b.month+1}</small></div><span class="badge ${b.diffDays===0?'bg-danger':'bg-orange'}">${dayText}</span>`;
-            container.appendChild(div);
-        });
-    } catch (e) { console.error(e); }
-}
-
-async function addBirthday() {
-    const name = document.getElementById('birthdayName').value;
-    const dateStr = document.getElementById('birthdayDate').value;
-    if (!name || !dateStr) return alert('Preencha tudo.');
-    
-    let day, month;
-    if (dateStr.includes('-')) { const p = dateStr.split('-'); day = parseInt(p[2]); month = parseInt(p[1])-1; }
-    else if (dateStr.includes('/')) { const p = dateStr.split('/'); day = parseInt(p[0]); month = parseInt(p[1])-1; }
-    else return alert('Data inválida');
-
-    try {
-        await window.db.collection('birthdays').add({
-            name, day, month, addedBy: window.auth.currentUser.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        alert('Salvo!');
-        document.getElementById('birthdayName').value = '';
-        document.getElementById('birthdayDate').value = '';
-        loadBirthdaysIntoCache(); // Atualiza cache
-        loadBirthdays();
-        loadUpcomingBirthdays();
-    } catch (e) { alert('Erro ao salvar.'); }
-}
-
-async function deleteBirthday(id) {
-    if(confirm('Excluir?')) {
-        await window.db.collection('birthdays').doc(id).delete();
-        loadBirthdaysIntoCache(); // Atualiza cache
-        loadBirthdays();
-        loadUpcomingBirthdays();
-    }
-}
-
-// Helper global para o calendário
-window.getBirthdaysForDate = function(dateObj) {
-    if (!window.globalBirthdays) return [];
-    return window.globalBirthdays.filter(b => b.day === dateObj.getDate() && b.month === dateObj.getMonth());
+    });
 };
 
-window.loadBirthdays = loadBirthdays;
-window.loadUpcomingBirthdays = loadUpcomingBirthdays;
-window.loadBirthdaysIntoCache = loadBirthdaysIntoCache;
-window.addBirthday = addBirthday;
-window.deleteBirthday = deleteBirthday;
+// 2. Função de Busca (Filtragem)
+window.filterBirthdays = function() {
+    const searchInput = document.getElementById('bdaySearch');
+    const container = document.getElementById('birthdaysListContainer');
+    
+    if (!container) return;
 
-// Inicializa cache
-document.addEventListener('DOMContentLoaded', () => setTimeout(loadBirthdaysIntoCache, 2000));
+    // Se o input não existir (ex: outra página), renderiza tudo
+    const term = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+    // Filtra o cache
+    const filteredList = window.birthdayCache.filter(b => 
+        b.name.toLowerCase().includes(term)
+    );
+
+    renderBirthdayList(container, filteredList);
+};
+
+// 3. Renderiza a Lista na Aba "Aniversários" (Inicialização)
+window.loadBirthdays = function() {
+    const container = document.getElementById('birthdaysListContainer');
+    if (!container) return;
+
+    // Limpa a busca ao abrir a página (opcional, gosto pessoal)
+    const searchInput = document.getElementById('bdaySearch');
+    if(searchInput) searchInput.value = '';
+
+    if (window.birthdayCache.length === 0) {
+        window.loadBirthdaysIntoCache();
+        setTimeout(window.loadBirthdays, 500);
+        return;
+    }
+
+    // Renderiza a lista completa
+    renderBirthdayList(container, window.birthdayCache);
+};
+
+// Função interna de desenho (Agora aceita uma lista específica)
+function renderBirthdayList(container, dataList) {
+    if (!dataList || dataList.length === 0) {
+        // Mensagem diferente se for busca vazia ou lista vazia
+        const isSearch = document.getElementById('bdaySearch')?.value.length > 0;
+        const msg = isSearch ? "Ninguém encontrado com esse nome." : "Nenhum aniversário cadastrado ainda.";
+        const action = isSearch ? "" : `<button class="btn btn-sm btn-outline-secondary rounded-pill mt-2" onclick="openBirthdayModal()">Adicionar o primeiro</button>`;
+
+        container.innerHTML = `
+            <div class="col-12 text-center text-muted py-5">
+                <i class="bi bi-search fs-1 mb-3 d-block" style="opacity: 0.3;"></i>
+                <p>${msg}</p>
+                ${action}
+            </div>`;
+        return;
+    }
+
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    
+    const currentYear = today.getFullYear();
+    const monthNames = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
+
+    // Ordenação Inteligente
+    const sortedBirthdays = [...dataList].map(b => {
+        const [y, m, d] = b.date.split('-').map(Number);
+        let nextBday = new Date(currentYear, m - 1, d);
+        if (nextBday < today) nextBday.setFullYear(currentYear + 1);
+        
+        const diffTime = nextBday - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+        
+        return { ...b, diffDays, day: d, month: m };
+    }).sort((a, b) => a.diffDays - b.diffDays);
+
+    let html = '';
+    sortedBirthdays.forEach(b => {
+        const isToday = b.diffDays === 0;
+        const isTomorrow = b.diffDays === 1;
+        
+        let statusText = `Faltam ${b.diffDays} dias`;
+        let cardClass = '';
+
+        if (isToday) {
+            statusText = '🎉 É HOJE!';
+            cardClass = 'is-today';
+        } else if (isTomorrow) {
+            statusText = 'Amanhã!';
+            cardClass = 'is-soon';
+        } else if (b.diffDays < 7) {
+            statusText = `Em ${b.diffDays} dias`;
+            cardClass = 'is-soon';
+        } else if (b.diffDays > 300) {
+            statusText = 'Já passou este ano';
+        }
+
+        html += `
+        <div class="col-md-6 col-lg-4">
+            <div class="bday-card ${cardClass}" onclick="openBirthdayModal('${b.id}', '${b.name}', '${b.date}')">
+                <div class="bday-date-box">
+                    <span class="bday-day">${b.day}</span>
+                    <span class="bday-month">${monthNames[b.month - 1]}</span>
+                </div>
+                <div class="bday-info flex-grow-1">
+                    <h6>${b.name}</h6>
+                    <span class="bday-countdown">${statusText}</span>
+                </div>
+                <i class="bi bi-pencil-fill bday-edit-icon small"></i>
+            </div>
+        </div>`;
+    });
+    
+    container.innerHTML = html;
+}
+
+// 4. Funções Auxiliares (Modal, Salvar, Excluir, Helpers)
+window.getBirthdaysForDate = function(dateObj) {
+    const m = dateObj.getMonth() + 1;
+    const d = dateObj.getDate();
+    return window.birthdayCache.filter(b => {
+        if (!b.date) return false;
+        const parts = b.date.split('-');
+        return parseInt(parts[1]) === m && parseInt(parts[2]) === d;
+    });
+};
+
+window.openBirthdayModal = function(id = '', name = '', date = '') {
+    const modalElement = document.getElementById('birthdayModal');
+    if (!modalElement) return;
+    const modal = new bootstrap.Modal(modalElement);
+    
+    document.getElementById('bdayId').value = id;
+    document.getElementById('bdayName').value = name;
+    document.getElementById('bdayDate').value = date;
+    
+    const deleteBtn = document.getElementById('btnDeleteBday');
+    const title = document.getElementById('birthdayModalTitle');
+    
+    if (id) {
+        if(title) title.textContent = 'Editar Aniversário';
+        if(deleteBtn) deleteBtn.classList.remove('d-none');
+    } else {
+        if(title) title.textContent = 'Novo Aniversário';
+        if(deleteBtn) deleteBtn.classList.add('d-none');
+    }
+    modal.show();
+};
+
+window.saveBirthday = async function() {
+    const id = document.getElementById('bdayId').value;
+    const name = document.getElementById('bdayName').value.trim();
+    const date = document.getElementById('bdayDate').value;
+
+    if (!name || !date) { alert("Preencha o nome e a data!"); return; }
+
+    const btn = document.querySelector('#birthdayModal .btn-orange');
+    const originalText = btn ? btn.textContent : 'Salvar';
+    if(btn) { btn.textContent = 'Salvando...'; btn.disabled = true; }
+
+    try {
+        const data = {
+            name: name,
+            date: date,
+            updatedBy: firebase.auth().currentUser.uid,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        if (id) {
+            await window.db.collection('birthdays').doc(id).update(data);
+        } else {
+            await window.db.collection('birthdays').add(data);
+        }
+
+        const modalEl = document.getElementById('birthdayModal');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if(modal) modal.hide();
+
+    } catch (error) {
+        console.error(error);
+        alert("Erro ao salvar.");
+    } finally {
+        if(btn) { btn.textContent = originalText; btn.disabled = false; }
+    }
+};
+
+window.deleteBirthday = async function() {
+    const id = document.getElementById('bdayId').value;
+    if (!id || !confirm("Tem certeza que deseja apagar?")) return;
+
+    try {
+        await window.db.collection('birthdays').doc(id).delete();
+        const modalEl = document.getElementById('birthdayModal');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if(modal) modal.hide();
+    } catch (error) {
+        console.error(error);
+        alert("Erro ao excluir.");
+    }
+};

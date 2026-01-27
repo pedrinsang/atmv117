@@ -197,17 +197,59 @@
             </div>
 
             <div id="aniversariosPage" class="page-content">
-                <h3 class="mb-4">Aniversários</h3>
-                <div class="card p-3 mb-4">
-                    <h5 class="text-orange">Adicionar Aniversário</h5>
-                    <input type="text" id="birthdayName" class="form-control mb-2" placeholder="Nome">
-                    <input type="text" id="birthdayDate" class="form-control mb-3" placeholder="Data (DD/MM/AAAA)">
-                    <button id="btnAddBirthday" class="btn btn-outline-orange w-100">Salvar</button>
+                <div class="container pb-5">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h4 class="fw-bold m-0"><i class="bi bi-gift me-2 text-orange"></i>Aniversariantes</h4>
+                        <button class="btn btn-sm btn-orange rounded-pill px-3" onclick="openBirthdayModal()">
+                            <i class="bi bi-plus-lg me-1"></i> Adicionar
+                        </button>
+                    </div>
+
+                    <div class="position-relative mb-4">
+                        <span class="position-absolute top-50 start-0 translate-middle-y ms-3 text-muted">
+                            <i class="bi bi-search"></i>
+                        </span>
+                        <input type="text" id="bdaySearch" class="form-control rounded-pill ps-5 text-white" 
+                            style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);" 
+                            placeholder="Buscar colega..." onkeyup="filterBirthdays()">
+                    </div>
+
+                    <div id="birthdaysListContainer" class="row g-3">
+                        <div class="text-center text-muted py-5">
+                            <div class="spinner-border text-orange mb-2"></div>
+                            <p>Carregando festas...</p>
+                        </div>
+                    </div>
                 </div>
-                <h5 class="mt-4 mb-3">Próximos</h5>
-                <div id="upcomingBirthdays" class="d-flex flex-column gap-2"></div>
-                <h5 class="mt-4 mb-3">Todos</h5>
-                <div id="allBirthdays" class="row g-2"></div>
+            </div>
+
+            <div class="modal fade" id="birthdayModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header border-0 pb-0">
+                            <h5 class="modal-title fw-bold text-white" id="birthdayModalTitle">Novo Aniversário</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <input type="hidden" id="bdayId"> <div class="mb-3">
+                                <label class="form-label text-muted small">Nome do Colega</label>
+                                <input type="text" class="form-control" id="bdayName" placeholder="Ex: João Silva">
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="form-label text-muted small">Data de Nascimento</label>
+                                <input type="date" class="form-control" id="bdayDate">
+                            </div>
+                            
+                            <div class="d-grid gap-2">
+                                <button type="button" class="btn btn-orange rounded-pill" onclick="saveBirthday()">Salvar</button>
+                                <button type="button" class="btn btn-outline-danger rounded-pill d-none" id="btnDeleteBday" onclick="deleteBirthday()">
+                                    <i class="bi bi-trash me-2"></i>Excluir
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -383,7 +425,7 @@
     <script src="src/js/lib/tasks.js"></script>
     <script src="src/js/lib/notifications.js"></script>
     <script src="src/js/lib/dados.js"></script>
-    <script src="src/js/lib/aniversarios.js"></script>
     <script src="src/js/lib/app.js"></script>
+    <script src="src/js/lib/aniversarios.js"></script>
 </body>
 </html>
