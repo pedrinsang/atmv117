@@ -2,7 +2,7 @@ name: Verificação Diária da Turma
 
 on:
   schedule:
-    # Roda todo dia às 11:00 UTC (que é 08:00 no Brasil)
+    # Roda todo dia às 11:00 UTC (08:00 no Brasil)
     - cron: '0 11 * * *'
   # Permite rodar manualmente para testar (botão "Run workflow")
   workflow_dispatch:
@@ -21,10 +21,12 @@ jobs:
         node-version: 18
 
     - name: Instalar Dependência do Firebase
+      # Instala na raiz do projeto, onde o Node consegue achar
       run: npm install firebase-admin
 
     - name: Rodar Script de Notificação
       env:
-        # Pega a chave que salvamos nos Secrets
+        # Pega a chave que você salvou nos Secrets do GitHub
         FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-      run: node daily-check.js
+      # AQUI ESTÁ A MUDANÇA: Apontamos para a pasta scripts/
+      run: node scripts/daily-checks.js
