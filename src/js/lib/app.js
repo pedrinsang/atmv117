@@ -206,6 +206,8 @@ function navigateToPage(pageId) {
     }
     
     if (pageId === 'aniversarios') setTimeout(() => { if(window.loadBirthdays) window.loadBirthdays(); }, 100);
+
+    if (pageId === 'faltas') setTimeout(() => { if(window.initFaltasPage) window.initFaltasPage(); }, 100);
     
     if (pageId === 'notificacoes') {
         const badge = document.getElementById('bottomNavBadge');
@@ -463,6 +465,7 @@ window.toggleSidebar = toggleSidebar;
 window.navigateToPage = navigateToPage;
 window.changePageMonth = changePageMonth;
 window.showPageDayTasks = showPageDayTasks;
+window.initFaltasPage = initFaltasPage;
 window.logout = function() { firebase.auth().signOut().then(() => window.location.href='login.html'); };
 
 // ========================================
@@ -569,28 +572,9 @@ window.loadUfsmNews = async function() {
                 if (parts.length === 3) dateDisplay = `${parts[2]}/${parts[1]}`;
             }
 
-            // --- LÓGICA DE DIFERENCIAÇÃO (O CÉREBRO VISUAL) ---
-            const titleLower = (item.title || '').toLowerCase();
-            
-            // Palavras que indicam documento importante
-            const isEdital = titleLower.includes('edital') || 
-                             titleLower.includes('seleção') || 
-                             titleLower.includes('bolsa') || 
-                             titleLower.includes('resultado') ||
-                             titleLower.includes('retificação') ||
-                             titleLower.includes('prae');
-
-            let labelColor = 'var(--orange-primary)'; // Laranja (Padrão)
-            let labelText = dateDisplay;
-            let titleColor = ''; // Branco padrão
-
-            if (isEdital) {
-                // Visual de Edital (Amarelo Dourado)
-                labelColor = '#f1c40f'; 
-                labelText = `<i class="bi bi-file-earmark-text-fill"></i> EDITAL • ${dateDisplay}`;
-                // Opcional: Deixar o título levemente amarelado também para chamar atenção
-                titleColor = 'color: #fceeb5;'; 
-            }
+            const labelColor = 'var(--orange-primary)';
+            const labelText = dateDisplay;
+            const titleColor = '';
 
             // Imagem (Usa a do feed ou a silhueta padrão)
             const imgUrl = item.img || 'src/img/logo-silhueta.png';
@@ -984,3 +968,137 @@ window.saveClassrooms = function() {
         }, 500);
     }).catch(err => { console.error(err); btn.innerHTML = 'Erro'; });
 };
+
+// ========================================
+// SISTEMA DE CONTROLE DE FALTAS
+// ========================================
+let faltasData = {};
+let _currentFaltasSubjects = [];
+
+function calcHorasSemanais(subject) {
+    return Object.values(currentUserSchedule).filter(v => v === subject).length;
+}
+
+function initFaltasPage() {
+    const subjects = [...new Set(Object.values(currentUserSchedule))].filter(Boolean);
+    _currentFaltasSubjects = subjects;
+
+    const noScheduleEl = document.getElementById('faltasNoSchedule');
+    const listEl = document.getElementById('faltasList');
+
+    if (subjects.length === 0) {
+        if (noScheduleEl) noScheduleEl.style.display = 'block';
+        if (listEl) listEl.innerHTML = '';
+        const totalEl = document.getElementById('faltasTotalHours');
+        if (totalEl) totalEl.textContent = '0h';
+        return;
+    }
+
+    if (noScheduleEl) noScheduleEl.style.display = 'none';
+
+    if (!firebase.auth().currentUser || !window.db) return;
+    const uid = firebase.auth().currentUser.uid;
+    window.db.collection('users').doc(uid).collection('faltas').doc('semestre').get()
+        .then(doc => {
+            faltasData = (doc.exists && doc.data()) ? doc.data() : {};
+            const semanasInput = document.getElementById('semanasInput');
+            if (semanasInput) semanasInput.value = faltasData._semanas || 15;
+            renderFaltasList();
+        })
+        .catch(() => { faltasData = {}; renderFaltasList(); });
+}
+
+function renderFaltasList() {
+    const listEl = document.getElementById('faltasList');
+    if (!listEl) return;
+    if (_currentFaltasSubjects.length === 0) { listEl.innerHTML = ''; return; }
+
+    const semanas = faltasData._semanas || 15;
+
+    listEl.innerHTML = _currentFaltasSubjects.map((sub, idx) => {
+        const entry = faltasData[sub] || {};
+        const count = entry.count || 0;
+        const hSem = calcHorasSemanais(sub);
+        const totalHoras = hSem * semanas;
+        const maxFaltas = Math.floor(totalHoras * 0.25);
+        const pct = maxFaltas > 0 ? Math.round((count / maxFaltas) * 100) : 0;
+        const barColor = pct >= 100 ? '#ff4757' : pct >= 75 ? '#ffa502' : 'var(--orange-primary)';
+        const badgeClass = pct >= 100 ? 'danger' : pct >= 75 ? 'warning' : 'success';
+        return `
+        <div class="card bg-glass border-0 p-3">
+            <div class="d-flex justify-content-between align-items-start mb-1">
+                <span class="text-white fw-semibold small lh-sm">${sub}</span>
+                <span class="badge bg-${badgeClass} ms-2 flex-shrink-0">${count}/${maxFaltas}h</span>
+            </div>
+            <div class="text-muted mb-2" style="font-size:0.72rem;">
+                <i class="bi bi-clock me-1"></i>${hSem}h/sem &nbsp;&middot;&nbsp; ${totalHoras}h total &nbsp;&middot;&nbsp; m&aacute;x ${maxFaltas}h (25%)
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-sm rounded-circle d-flex align-items-center justify-content-center"
+                    style="width:34px;height:34px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:white;"
+                    onclick="updateFalta(${idx}, -1)"><i class="bi bi-dash"></i></button>
+                <span class="fw-bold fs-5 text-white" style="min-width:2.5rem;text-align:center;">${count}h</span>
+                <button class="btn btn-sm rounded-circle d-flex align-items-center justify-content-center"
+                    style="width:34px;height:34px;background:rgba(255,107,53,0.2);border:1px solid var(--orange-primary);color:var(--orange-primary);"
+                    onclick="updateFalta(${idx}, 1)"><i class="bi bi-plus"></i></button>
+                <div class="flex-grow-1 ms-2" style="height:5px;background:rgba(255,255,255,0.08);border-radius:3px;">
+                    <div style="width:${Math.min(pct,100)}%;background:${barColor};height:100%;border-radius:3px;transition:width 0.3s;"></div>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+
+    updateFaltasTotalDisplay();
+}
+
+window.updateFalta = function(idx, delta) {
+    const sub = _currentFaltasSubjects[idx];
+    if (!faltasData[sub]) faltasData[sub] = { count: 0 };
+    faltasData[sub].count = Math.max(0, (faltasData[sub].count || 0) + delta);
+    renderFaltasList();
+    saveFaltasToFirestore();
+};
+
+window.updateSemanasNoSemestre = function(value) {
+    const num = Math.max(1, Math.min(30, parseInt(value) || 15));
+    faltasData._semanas = num;
+    const input = document.getElementById('semanasInput');
+    if (input) input.value = num;
+    renderFaltasList();
+    saveFaltasToFirestore();
+};
+
+function saveFaltasToFirestore() {
+    if (!firebase.auth().currentUser || !window.db) return;
+    const uid = firebase.auth().currentUser.uid;
+    const indicator = document.getElementById('faltasSaveIndicator');
+    if (indicator) { indicator.textContent = ''; indicator.className = 'ms-2 small'; }
+
+    window.db.collection('users').doc(uid).collection('faltas').doc('semestre')
+        .set(faltasData)
+        .then(() => {
+            if (indicator) {
+                indicator.textContent = '✓ Salvo';
+                indicator.className = 'ms-2 small text-success';
+                setTimeout(() => { indicator.textContent = ''; }, 2000);
+            }
+        })
+        .catch(e => {
+            console.error('Erro ao salvar faltas:', e);
+            if (indicator) {
+                indicator.textContent = '✗ Erro ao salvar';
+                indicator.className = 'ms-2 small text-danger';
+            }
+            if (e && e.code === 'permission-denied') {
+                alert('⚠️ Sem permissão para salvar faltas.\n\nAdicione a regra abaixo no Firestore Console:\n\nmatch /users/{uid}/faltas/{doc} {\n  allow read, write: if request.auth.uid == uid;\n}');
+            }
+        });
+}
+
+function updateFaltasTotalDisplay() {
+    const totalHours = Object.keys(faltasData)
+        .filter(k => !k.startsWith('_'))
+        .reduce((sum, k) => sum + ((faltasData[k] && faltasData[k].count) || 0), 0);
+    const el = document.getElementById('faltasTotalHours');
+    if (el) el.textContent = totalHours + 'h';
+}
