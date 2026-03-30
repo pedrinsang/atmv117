@@ -370,6 +370,35 @@
         </div>
     </div>
 
+    <div class="modal fade" id="holidayModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-white">Novo Feriado</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="holidayForm">
+                        <input type="hidden" id="holidayReopenDate" value="">
+                        <div class="mb-3">
+                            <label class="form-label">Descrição</label>
+                            <input type="text" class="form-control" id="holidayTitle" placeholder="Ex: Feriado Nacional" maxlength="80">
+                            <small class="text-muted">No calendário será exibido como FERIADO.</small>
+                        </div>
+                        <div class="mb-1">
+                            <label class="form-label">Data</label>
+                            <input type="date" class="form-control" id="holidayDate" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-orange rounded-pill" id="btnSaveHoliday" onclick="addHoliday()">Salvar Feriado</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="scheduleConfigModal" tabindex="-1" data-bs-backdrop="static">
         <div class="modal-dialog modal-fullscreen">
             <div class="modal-content bg-dark">
@@ -382,6 +411,17 @@
                         <div class="alert alert-dark border-orange text-black mb-3">
                             <i class="bi bi-info-circle me-2 text-orange"></i>
                             Selecione as cadeiras que você fará neste semestre.
+                        </div>
+                        <div class="card bg-glass border-0 p-3 mb-3">
+                            <label class="form-label text-white mb-2">Adicionar manualmente</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="manualSubjectInput" placeholder="Ex: Grupo de estudos, plantão, monitoria" maxlength="80">
+                                <button type="button" class="btn btn-orange" onclick="addManualSubject()">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
+                            </div>
+                            <small class="text-muted d-block mt-2">Use para incluir tarefas/compromissos que não estao na lista.</small>
+                            <div id="manualSubjectsList" class="d-flex flex-wrap gap-2 mt-3"></div>
                         </div>
                         <div class="accordion" id="semestersAccordion"></div>
                     </div>

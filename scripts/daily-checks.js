@@ -11,6 +11,26 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
+async function cleanupExpiredTasks(todayStr) {
+  const overdueSnap = await db.collection('tasks')
+    .where('date', '<', todayStr)
+    .get();
+
+  if (overdueSnap.empty) {
+    console.log("🧹 Nenhuma tarefa vencida para excluir.");
+    return;
+  }
+
+  const refs = overdueSnap.docs.map(doc => doc.ref);
+  for (let i = 0; i < refs.length; i += 400) {
+    const batch = db.batch();
+    refs.slice(i, i + 400).forEach(ref => batch.delete(ref));
+    await batch.commit();
+  }
+
+  console.log(`🧹 ${refs.length} tarefa(s) vencida(s) removida(s).`);
+}
+
 async function checkAndNotify() {
   console.log("🤖 Iniciando verificação diária...");
 
@@ -23,11 +43,16 @@ async function checkAndNotify() {
   // Adiciona 1 dia para pegar "Amanhã"
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
+  const todayStr = now.toISOString().split('T')[0];
   
   const tomorrowStr = tomorrow.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+  console.log(`🗑️ Removendo tarefas anteriores a: ${todayStr}`);
   console.log(`📅 Buscando tarefas para: ${tomorrowStr}`);
 
   try {
+    // 2.5 Remove tarefas vencidas
+    await cleanupExpiredTasks(todayStr);
+
     // 3. Busca tarefas no Banco
     const snapshot = await db.collection('tasks')
       .where('date', '==', tomorrowStr)

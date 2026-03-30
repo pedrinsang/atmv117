@@ -4,19 +4,79 @@
 
 document.addEventListener('DOMContentLoaded', () => { loadTasks(); });
 
-function loadTasks() {
+let taskListenersStarted = false;
+
+function getLocalDateKey(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+async function cleanupExpiredTasksIfNeeded() {
+    if (!window.db || !firebase.auth().currentUser) return;
+
+    const user = firebase.auth().currentUser;
+    const todayKey = getLocalDateKey(new Date());
+    const cleanupKey = `tasks_cleanup_${user.uid}`;
+
+    try {
+        if (localStorage.getItem(cleanupKey) === todayKey) return;
+    } catch (e) {}
+
+    try {
+        const snapshot = await window.db.collection('tasks').where('date', '<', todayKey).get();
+        if (snapshot.empty) return;
+
+        const canDeleteAnyTask = window.isAdmin && window.isAdmin();
+        const refsToDelete = [];
+
+        snapshot.forEach(doc => {
+            const task = doc.data() || {};
+            if (canDeleteAnyTask || task.userId === user.uid) refsToDelete.push(doc.ref);
+        });
+
+        for (let i = 0; i < refsToDelete.length; i += 400) {
+            const batch = window.db.batch();
+            refsToDelete.slice(i, i + 400).forEach(ref => batch.delete(ref));
+            await batch.commit();
+        }
+    } catch (e) {
+        console.error('Erro na limpeza automatica de tarefas vencidas:', e);
+    } finally {
+        try { localStorage.setItem(cleanupKey, todayKey); } catch (e) {}
+    }
+}
+
+async function loadTasks() {
     if (!window.db) { setTimeout(loadTasks, 500); return; }
+    if (taskListenersStarted) return;
+
+    await cleanupExpiredTasksIfNeeded();
+    taskListenersStarted = true;
 
     const today = new Date();
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const firstDayKey = getLocalDateKey(new Date(year, month, 1));
+    const firstDayNextMonth = new Date(year, month + 1, 1);
+    const daysInCurrentMonth = new Date(year, month + 1, 0).getDate();
+    const isLastWeekOfMonth = today.getDate() > (daysInCurrentMonth - 7);
+
+    const monthRangeEndKey = isLastWeekOfMonth
+        ? getLocalDateKey(new Date(firstDayNextMonth.getFullYear(), firstDayNextMonth.getMonth(), 11))
+        : getLocalDateKey(firstDayNextMonth);
     
     // Lista Mês
-    window.db.collection('tasks').orderBy('date', 'asc').where('date', '>=', firstDay)
+    window.db.collection('tasks')
+        .orderBy('date', 'asc')
+        .where('date', '>=', firstDayKey)
+        .where('date', '<', monthRangeEndKey)
         .onSnapshot(snapshot => {
             const list = document.getElementById('tasksList');
             if (!list) return;
             list.innerHTML = '';
-            if (snapshot.empty) list.innerHTML = '<div class="col-12 text-center text-muted py-5"><i class="bi bi-calendar-check fs-1"></i><p>Nenhuma tarefa futura.</p></div>';
+            if (snapshot.empty) list.innerHTML = '<div class="col-12 text-center text-muted py-5"><i class="bi bi-calendar-check fs-1"></i><p>Nenhuma tarefa para este período.</p></div>';
             else snapshot.forEach(doc => list.appendChild(createTaskCard(doc.id, doc.data())));
             
             if (typeof loadPageCalendarData === 'function') loadPageCalendarData();

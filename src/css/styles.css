@@ -176,7 +176,36 @@ body {
 .task-dot.trabalho, .task-bar.trabalho, .legend-dot.trabalho { background-color: #00ff6a; }
 .task-dot.atividade, .task-bar.atividade, .legend-dot.atividade { background-color: #ffa502; }
 .task-dot.aniversario, .task-bar.aniversario, .legend-dot.aniversario { background-color: #00aaff; box-shadow: 0 0 5px #00aaff; }
+.task-dot.feriado, .task-bar.feriado, .legend-dot.feriado { background-color: #8f96a3; }
 .legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+
+.holiday-strip {
+    margin-top: auto;
+    margin-bottom: 2px;
+    padding: 3px 5px;
+    border-radius: 6px;
+    background: #6f7785;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #ffffff;
+    font-size: 0.58rem;
+    font-weight: 900;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    text-align: center;
+    line-height: 1.05;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.25);
+}
+
+@media (max-width: 767px) {
+    .holiday-strip {
+        font-size: 0.54rem;
+        padding: 3px 4px;
+        border-radius: 7px;
+        letter-spacing: 0.2px;
+    }
+}
 
 /* Tablet */
 @media (min-width: 768px) {

@@ -242,6 +242,12 @@ function initializeCalendarPage() {
                 </div>
                 <button class="btn btn-outline-light border-0" onclick="changePageMonth(1)" style="font-size: 1.5rem;"><i class="bi bi-chevron-right"></i></button>
             </div>
+
+            <div class="text-center mb-3">
+                <button class="btn btn-sm btn-outline-light rounded-pill px-3" onclick="openAddHolidayModal()">
+                    <i class="bi bi-calendar2-plus me-2"></i>Adicionar feriado
+                </button>
+            </div>
             
             <div class="calendar-legend mb-3 text-muted" style="font-size: 0.8rem;">
                 <div class="d-flex flex-wrap gap-3 justify-content-center">
@@ -249,6 +255,7 @@ function initializeCalendarPage() {
                     <div class="d-flex align-items-center gap-1"><span class="legend-dot prova"></span> Prova</div>
                     <div class="d-flex align-items-center gap-1"><span class="legend-dot atividade"></span> Atividade</div>
                     <div class="d-flex align-items-center gap-1"><span class="legend-dot aniversario"></span> Aniversário</div>
+                    <div class="d-flex align-items-center gap-1"><span class="legend-dot feriado"></span> Feriado</div>
                 </div>
             </div>
             
@@ -277,7 +284,11 @@ function initializeCalendarPage() {
 
 function loadPageCalendarData() {
     if (!window.db) { setTimeout(loadPageCalendarData, 500); return; }
-    window.db.collection('tasks').get().then(snapshot => {
+
+    Promise.all([
+        window.db.collection('tasks').get(),
+        window.db.collection('holidays').get()
+    ]).then(([snapshot, holidaySnapshot]) => {
         const tasks = {};
         snapshot.forEach(doc => {
             const t = doc.data();
@@ -286,8 +297,21 @@ function loadPageCalendarData() {
             if(!tasks[dKey]) tasks[dKey] = [];
             tasks[dKey].push({ id: doc.id, ...t });
         });
+
+        const holidays = {};
+        holidaySnapshot.forEach(doc => {
+            const h = doc.data();
+            if (!h.date) return;
+            const dKey = h.date.split('T')[0];
+            if (!holidays[dKey]) holidays[dKey] = [];
+            holidays[dKey].push({ id: doc.id, ...h });
+        });
+
         window.pageCalendarTasks = tasks;
+        window.pageCalendarHolidays = holidays;
         renderPageCalendar();
+    }).catch(err => {
+        console.error('Erro ao carregar dados do calendário:', err);
     });
 }
 
@@ -323,6 +347,7 @@ function renderPageCalendar(animationDir = 0) {
     for (let day = 1; day <= daysInMonth; day++) {
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const hasTasks = window.pageCalendarTasks && window.pageCalendarTasks[dateStr] ? window.pageCalendarTasks[dateStr] : [];
+        const hasHolidays = window.pageCalendarHolidays && window.pageCalendarHolidays[dateStr] ? window.pageCalendarHolidays[dateStr] : [];
         const isToday = dateStr === new Date().toISOString().split('T')[0];
         
         let bdays = [];
@@ -332,23 +357,29 @@ function renderPageCalendar(animationDir = 0) {
 
         let allItems = [];
         if (bdays.length > 0) bdays.forEach(b => allItems.push({ type: 'aniversario', title: `🎉 ${b.name}`, isBday: true }));
+        if (hasHolidays.length > 0) hasHolidays.forEach(h => allItems.push({ type: 'feriado', title: 'FERIADO', isHoliday: true, holidayName: h.title || 'Feriado' }));
         if (hasTasks.length > 0) hasTasks.forEach(t => allItems.push(t));
+
+        const visualItems = allItems.filter(item => item.type !== 'feriado');
 
         let barsHtml = '';
         let dotsHtml = '';
 
-        if (allItems.length > 0) {
-            const barsContent = allItems.map(t => `<div class="task-bar ${t.type}">${t.title}</div>`).join('');
+        if (visualItems.length > 0) {
+            const barsContent = visualItems.map(t => `<div class="task-bar ${t.type}">${t.title}</div>`).join('');
             const maxVisibleExpanded = 2; 
-            const extraCount = allItems.length - maxVisibleExpanded;
+            const extraCount = visualItems.length - maxVisibleExpanded;
             const moreLabel = extraCount > 0 ? `<div class="task-more-label">Clique para ver +${extraCount}</div>` : '';
             barsHtml = `<div class="task-bars">${barsContent}${moreLabel}</div>`;
-            dotsHtml = `<div class="task-dots">${allItems.slice(0,4).map(t => `<span class="task-dot ${t.type}"></span>`).join('')}</div>`;
+            dotsHtml = `<div class="task-dots">${visualItems.slice(0,4).map(t => `<span class="task-dot ${t.type}"></span>`).join('')}</div>`;
         }
+
+            const holidayStripHtml = hasHolidays.length > 0 ? `<div class="holiday-strip">FERIADO</div>` : '';
 
         let classes = `calendar-day ${isToday ? 'selected' : ''} ${allItems.length > 0 ? 'has-task' : ''}`;
         html += `<div class="${classes}" onclick="showPageDayTasks('${dateStr}')">
                     <span class="day-number">${day}</span>
+                    ${holidayStripHtml}
                     ${dotsHtml}
                     ${barsHtml}
                  </div>`;
@@ -364,17 +395,13 @@ function changePageMonth(dir) {
 
 function showPageDayTasks(dateStr) {
     const tasks = window.pageCalendarTasks && window.pageCalendarTasks[dateStr] ? window.pageCalendarTasks[dateStr] : [];
+    const holidays = window.pageCalendarHolidays && window.pageCalendarHolidays[dateStr] ? window.pageCalendarHolidays[dateStr] : [];
     let bdays = [];
     if (typeof getBirthdaysForDate === 'function') {
         const parts = dateStr.split('-');
         bdays = getBirthdaysForDate(new Date(parts[0], parts[1]-1, parts[2]));
     }
 
-    if (tasks.length === 0 && bdays.length === 0) {
-        if (typeof openAddTaskModal === 'function') openAddTaskModal(dateStr, false);
-        return;
-    }
-    
     const modalBody = document.getElementById('dayTasksModalBody');
     const modalTitle = document.getElementById('dayTasksModalTitle');
     
@@ -392,6 +419,24 @@ function showPageDayTasks(dateStr) {
                 <i class="bi bi-gift-fill me-3 fs-4"></i>
                 <div><strong class="d-block">Aniversário!</strong><span class="small">${b.name}</span></div>
             </div>`).join('');
+    }
+
+    if (holidays.length > 0) {
+        content += holidays.map(h => {
+            const isOwner = window.auth.currentUser && window.auth.currentUser.uid === h.userId;
+            const isAdmin = window.isAdmin && window.isAdmin();
+            const actions = (isOwner || isAdmin)
+                ? `<div class="mt-2 pt-2 border-top border-secondary d-flex justify-content-end gap-2"><button class="btn btn-sm btn-outline-danger border-0" onclick="deleteHoliday('${h.id}', '${dateStr}')"><i class="bi bi-trash"></i></button></div>`
+                : '';
+
+            return `
+            <div class="p-3 rounded border border-secondary mb-3" style="background: rgba(255,255,255,0.05); border-left: 4px solid #8f96a3 !important;">
+                <div class="d-flex justify-content-between mb-1"><span class="badge" style="background:#8f96a3;color:#1e1e1e;">FERIADO</span></div>
+                <h6 class="fw-bold text-white mb-1">${h.title || 'Feriado'}</h6>
+                <p class="text-muted small mb-0">Dia sem aula.</p>
+                ${actions}
+            </div>`;
+        }).join('');
     }
     
     if (tasks.length > 0) {
@@ -438,10 +483,22 @@ function showPageDayTasks(dateStr) {
         content += `</div>`;
     }
     
+    if (tasks.length === 0 && bdays.length === 0 && holidays.length === 0) {
+        content += `
+            <div class="text-center py-3 text-muted">
+                <i class="bi bi-calendar-x fs-2 d-block mb-2"></i>
+                Nenhum evento neste dia.
+            </div>
+        `;
+    }
+
     content += `
-        <div class="mt-4 pt-3 border-top border-secondary text-center">
+        <div class="mt-4 pt-3 border-top border-secondary d-grid gap-2">
             <button class="btn btn-orange rounded-pill w-100" onclick="openAddTaskModal('${dateStr}', true)">
-                <i class="bi bi-plus-lg me-2"></i>Adicionar outra tarefa
+                <i class="bi bi-plus-lg me-2"></i>Adicionar tarefa
+            </button>
+            <button class="btn btn-outline-light rounded-pill w-100" onclick="openAddHolidayModal('${dateStr}', true)">
+                <i class="bi bi-calendar2-plus me-2"></i>Adicionar feriado
             </button>
         </div>
     `;
@@ -449,6 +506,97 @@ function showPageDayTasks(dateStr) {
     modalBody.innerHTML = content;
     new bootstrap.Modal(document.getElementById('dayTasksModal')).show();
 }
+
+window.openAddHolidayModal = async function(dateStr = null, reopenDay = false) {
+    const hasAccess = await window.verifyClassAccess();
+    if (!hasAccess) return;
+
+    const form = document.getElementById('holidayForm');
+    if (form) form.reset();
+
+    const dateInput = document.getElementById('holidayDate');
+    if (dateInput) dateInput.value = dateStr || '';
+    const reopenInput = document.getElementById('holidayReopenDate');
+    if (reopenInput) reopenInput.value = reopenDay && dateStr ? dateStr : '';
+
+    const dayModal = bootstrap.Modal.getInstance(document.getElementById('dayTasksModal'));
+    if (dayModal) dayModal.hide();
+
+    new bootstrap.Modal(document.getElementById('holidayModal')).show();
+};
+
+window.addHoliday = async function() {
+    const hasAccess = await window.verifyClassAccess();
+    if (!hasAccess) return;
+
+    const titleInput = document.getElementById('holidayTitle');
+    const dateInput = document.getElementById('holidayDate');
+    const reopenInput = document.getElementById('holidayReopenDate');
+    const saveBtn = document.getElementById('btnSaveHoliday');
+    const user = firebase.auth().currentUser;
+
+    const title = (titleInput && titleInput.value ? titleInput.value : 'FERIADO').trim() || 'FERIADO';
+    const date = dateInput ? dateInput.value : '';
+    const reopenDate = reopenInput ? reopenInput.value : '';
+
+    if (!date) {
+        alert('Selecione a data do feriado.');
+        return;
+    }
+
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Salvando...';
+    }
+
+    try {
+        await window.db.collection('holidays').add({
+            title,
+            date,
+            userId: user ? user.uid : null,
+            userName: user ? user.displayName : 'Usuário',
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        bootstrap.Modal.getInstance(document.getElementById('holidayModal')).hide();
+        if (typeof loadPageCalendarData === 'function') loadPageCalendarData();
+        if (reopenDate) setTimeout(() => showPageDayTasks(reopenDate), 400);
+    } catch (e) {
+        console.error(e);
+        alert('Erro ao salvar feriado.');
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Salvar Feriado';
+        }
+    }
+};
+
+window.deleteHoliday = async function(id, dateStr = '') {
+    const hasAccess = await window.verifyClassAccess(true);
+    if (!hasAccess) return;
+    if (!confirm('Excluir este feriado?')) return;
+
+    try {
+        const docRef = window.db.collection('holidays').doc(id);
+        const doc = await docRef.get();
+        if (!doc.exists) return;
+
+        const holiday = doc.data() || {};
+        const user = window.auth.currentUser;
+        const isAdmin = window.isAdmin && window.isAdmin();
+        if (!isAdmin && (!user || holiday.userId !== user.uid)) {
+            alert('Você nao tem permissão para excluir este feriado.');
+            return;
+        }
+
+        await docRef.delete();
+        if (typeof loadPageCalendarData === 'function') loadPageCalendarData();
+        if (dateStr) setTimeout(() => showPageDayTasks(dateStr), 300);
+    } catch (e) {
+        alert('Erro ao excluir feriado.');
+    }
+};
 
 async function checkUserBlocked(user) {
     if (window.isCheckingBlockedAccount) return false;
@@ -770,7 +918,10 @@ function formatSubjectName(fullName) {
 }
 
 window.openScheduleConfig = function() {
+    const existingSubjects = Object.values(currentUserSchedule || {}).filter(Boolean);
+    selectedSubjectsTemp = [...new Set([...selectedSubjectsTemp, ...existingSubjects])];
     renderSemesterAccordion();
+    renderManualSubjects();
     changeScheduleStep(1);
     new bootstrap.Modal(document.getElementById('scheduleConfigModal')).show();
 };
@@ -779,14 +930,62 @@ function renderSemesterAccordion() {
     const container = document.getElementById('semestersAccordion');
     let html = '';
     VET_CURRICULUM.forEach(sem => {
-        html += `<div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSem${sem.sem}">${sem.sem}º Semestre</button></h2><div id="collapseSem${sem.sem}" class="accordion-collapse collapse" data-bs-parent="#semestersAccordion"><div class="accordion-body">${sem.subjects.map(sub => `<div class="form-check"><input class="form-check-input subject-checkbox" type="checkbox" value="${sub}" id="chk_${sub.replace(/\s/g, '')}" onchange="updateSelectedSubjects(this)"><label class="form-check-label" for="chk_${sub.replace(/\s/g, '')}">${sub}</label></div>`).join('')}</div></div></div>`;
+        html += `<div class="accordion-item"><h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSem${sem.sem}">${sem.sem}º Semestre</button></h2><div id="collapseSem${sem.sem}" class="accordion-collapse collapse" data-bs-parent="#semestersAccordion"><div class="accordion-body">${sem.subjects.map(sub => {
+            const checked = selectedSubjectsTemp.includes(sub) ? 'checked' : '';
+            const safeId = sub.replace(/[^a-zA-Z0-9]/g, '');
+            return `<div class="form-check"><input class="form-check-input subject-checkbox" type="checkbox" value="${sub}" id="chk_${safeId}" onchange="updateSelectedSubjects(this)" ${checked}><label class="form-check-label" for="chk_${safeId}">${sub}</label></div>`;
+        }).join('')}</div></div></div>`;
     });
     container.innerHTML = html;
 }
 
+function renderManualSubjects() {
+    const listEl = document.getElementById('manualSubjectsList');
+    if (!listEl) return;
+
+    const curriculumSubjects = new Set(VET_CURRICULUM.flatMap(sem => sem.subjects));
+    const manualOnly = selectedSubjectsTemp.filter(sub => !curriculumSubjects.has(sub));
+
+    if (manualOnly.length === 0) {
+        listEl.innerHTML = '<small class="text-muted">Nenhum item manual adicionado.</small>';
+        return;
+    }
+
+    listEl.innerHTML = manualOnly.map(sub => `
+        <span class="badge text-bg-dark border border-secondary d-inline-flex align-items-center gap-2 px-2 py-2">
+            <span>${sub}</span>
+            <button type="button" class="btn btn-sm btn-link text-danger p-0" style="line-height:1;" onclick='removeManualSubject(${JSON.stringify(sub)})'>
+                <i class="bi bi-x-circle-fill"></i>
+            </button>
+        </span>
+    `).join('');
+}
+
+window.addManualSubject = function() {
+    const input = document.getElementById('manualSubjectInput');
+    if (!input) return;
+
+    const manualSubject = input.value.trim().replace(/\s+/g, ' ');
+    if (!manualSubject) return;
+
+    if (!selectedSubjectsTemp.includes(manualSubject)) {
+        selectedSubjectsTemp.push(manualSubject);
+    }
+
+    input.value = '';
+    renderManualSubjects();
+};
+
+window.removeManualSubject = function(subject) {
+    selectedSubjectsTemp = selectedSubjectsTemp.filter(s => s !== subject);
+    renderSemesterAccordion();
+    renderManualSubjects();
+};
+
 window.updateSelectedSubjects = function(checkbox) {
     if (checkbox.checked) { if (!selectedSubjectsTemp.includes(checkbox.value)) selectedSubjectsTemp.push(checkbox.value); } 
     else { selectedSubjectsTemp = selectedSubjectsTemp.filter(s => s !== checkbox.value); }
+    renderManualSubjects();
 };
 
 window.changeScheduleStep = function(step) {
@@ -832,7 +1031,7 @@ window.renderGridEditor = function() {
 window.openPickSubjectModal = function(day, time) {
     activeCell = { day, time };
     const list = document.getElementById('pickSubjectList');
-    let html = selectedSubjectsTemp.map(sub => `<button class="btn btn-outline-light w-100 mb-2 text-start" onclick="assignSubjectToCell('${sub}')">${sub}</button>`).join('');
+    let html = selectedSubjectsTemp.map(sub => `<button class="btn btn-outline-light w-100 mb-2 text-start" onclick='assignSubjectToCell(${JSON.stringify(sub)})'>${sub}</button>`).join('');
     list.innerHTML = html;
     new bootstrap.Modal(document.getElementById('pickSubjectModal')).show();
 };
